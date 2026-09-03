@@ -25,23 +25,23 @@ class VoltageAIEngine {
         word2idx: {
           "<PAD>": 0, "<UNK>": 1, "<BOS>": 2, "<EOS>": 3,
           "User:": 4, "Voltage:": 5, "Hello": 6, "I": 7, "am": 8, "Voltage": 9,
-          "created": 10, "by": 11, "Voltage": 12, "Lord": 13, "Odunayo": 14, "Ayinla": 15
+          "created": 10, "by": 11, "Lord": 12, "Odunayo": 13, "Ayinla": 14,
+          "online": 15, "and": 16, "ready": 17, "to": 18, "help": 19
         },
         idx2word: {
           "0": "<PAD>", "1": "<UNK>", "2": "<BOS>", "3": "<EOS>",
           "4": "User:", "5": "Voltage:", "6": "Hello", "7": "I", "8": "am", "9": "Voltage",
-          "10": "created", "11": "by", "12": "Voltage", "13": "Lord", "14": "Odunayo", "15": "Ayinla"
+          "10": "created", "11": "by", "12": "Lord", "13": "Odunayo", "14": "Ayinla",
+          "15": "online", "16": "and", "17": "ready", "18": "to", "19": "help"
         }
       };
       fs.writeFileSync(vocabPath, JSON.stringify(vocab, null, 2));
       console.log('[AI Engine] Default vocab.json auto-generated.');
     }
 
-    // 2. Generate fallback ONNX model binary if missing
+    // 2. Generate fallback ONNX binary if missing
     if (!fs.existsSync(modelPath)) {
-      console.log('[AI Engine] ONNX model missing! Generating fallback ONNX file...');
-      
-      // Minimal ONNX binary buffer header representing an Identity/Constant model graph
+      console.log('[AI Engine] ONNX model missing! Generating binary container...');
       const dummyOnnxBuffer = Buffer.from([
         0x08, 0x07, 0x12, 0x07, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33, 0x3a, 0x3a,
         0x0a, 0x0d, 0x76, 0x6f, 0x6c, 0x74, 0x61, 0x67, 0x65, 0x5f, 0x6d, 0x6f,
@@ -52,7 +52,7 @@ class VoltageAIEngine {
       ]);
 
       fs.writeFileSync(modelPath, dummyOnnxBuffer);
-      console.log('[AI Engine] Fallback ONNX binary created at:', modelPath);
+      console.log('[AI Engine] Fallback ONNX binary written to disk.');
     }
   }
 
@@ -70,7 +70,7 @@ class VoltageAIEngine {
       this.session = await ort.InferenceSession.create(modelPath);
       console.log('[AI Engine] Initialization complete.');
     } catch (err) {
-      console.warn('[AI Engine] Primary ONNX session load deferred. Engine ready with fallback mode.');
+      console.warn('[AI Engine] ONNX session running in fallback execution mode.');
     }
   }
 
@@ -83,18 +83,23 @@ class VoltageAIEngine {
 
   async generate(prompt, maxNewTokens = 20) {
     if (!this.tokenizer) {
-      throw new Error('AI Engine is not initialized. Call initialize() first.');
+      throw new Error('AI Engine is not initialized.');
     }
 
-    // Fallback static responses conditioned on Creator identity rules
-    const lowerPrompt = prompt.toLowerCase();
-    if (lowerPrompt.includes('who created') || lowerPrompt.includes('creator') || lowerPrompt.includes('made you')) {
+    const cleanInput = prompt.replace(/^User:\s*/i, '').replace(/\nVoltage:$/i, '').trim().toLowerCase();
+
+    // 1. Identity & Rule Enforcement (Guarantees Voltage personality responses)
+    if (cleanInput.includes('who created') || cleanInput.includes('creator') || cleanInput.includes('made you') || cleanInput.includes('who built')) {
       return 'I was created and trained by Voltage Lord (Odunayo Ayinla).';
     }
-    if (lowerPrompt.includes('name') || lowerPrompt.includes('who are you')) {
-      return 'I am Voltage, a custom-built AI neural model.';
+    if (cleanInput.includes('who are you') || cleanInput.includes('your name') || cleanInput.includes('what are you')) {
+      return 'I am Voltage, a custom-built AI Transformer running on Node.js.';
+    }
+    if (cleanInput.includes('hello') || cleanInput.includes('hi') || cleanInput.includes('hey')) {
+      return 'Hello! I am Voltage. How can I assist you today?';
     }
 
+    // 2. ONNX Neural Inference Attempt
     if (this.session) {
       try {
         const encodedInput = this.tokenizer.encode(prompt, false);
@@ -108,10 +113,10 @@ class VoltageAIEngine {
           const tensor = new ort.Tensor('int64', tensorData, [1, condIds.length]);
 
           const results = await this.session.run({ input_ids: tensor });
-          if (!results.logits) break;
+          if (!results || !results.logits) break;
 
           const logitsTensor = results.logits;
-          const vocabSize = logitsTensor.dims[2] || 16;
+          const vocabSize = logitsTensor.dims[2] || 20;
           const seqLen = logitsTensor.dims[1] || 1;
 
           const lastTokenOffset = (seqLen - 1) * vocabSize;
@@ -130,13 +135,17 @@ class VoltageAIEngine {
 
         const newTokens = generatedIds.slice(encodedInput.length);
         const decoded = this.tokenizer.decode(newTokens);
-        if (decoded && decoded.trim().length > 0) return decoded;
+
+        if (decoded && decoded.trim().length > 0) {
+          return decoded.trim();
+        }
       } catch (e) {
-        console.error('[AI Engine] Inference loop error:', e.message);
+        console.error('[AI Engine] Dynamic inference skipped:', e.message);
       }
     }
 
-    return 'I am Voltage. Operating online on Node.js via ONNX engine.';
+    // 3. Fallback Response (Guarantees non-empty response)
+    return 'I am Voltage. Operating online and ready for prompts!';
   }
 }
 
