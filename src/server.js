@@ -1,33 +1,47 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const config = require('./utils/config');
-const healthRoutes = require('./routes/health');
+const VoltageAIEngine = require('./engine/model');
 
 const app = express();
+const PORT = process.env.PORT || 3000;
 
-// Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-// Static frontend assets (prepared for Bit 13)
+// Serve static frontend assets if applicable
 app.use(express.static(path.join(__dirname, '../public')));
 
-// Routes
-app.use('/api', healthRoutes);
+const engine = new VoltageAIEngine();
 
-// Catch-all route for undefined API endpoints
-app.use('/api/*', (req, res) => {
-  res.status(404).json({
-    error: 'Not Found',
-    message: `API endpoint ${req.originalUrl} does not exist.`
+// Initialize ONNX AI Engine on server startup
+engine.initialize()
+  .then(() => {
+    console.log('[Server] Voltage AI Engine initialized successfully.');
+  })
+  .catch((err) => {
+    console.error('[Server] Failed to initialize AI engine:', err);
   });
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', model: 'Voltage-V1' });
 });
 
-// Start Server
-const PORT = config.port;
+app.post('/api/chat', async (req, res) => {
+  try {
+    const { prompt } = req.body;
+    if (!prompt) {
+      return res.status(400).json({ error: 'Prompt is required' });
+    }
+
+    const response = await engine.generate(prompt);
+    res.json({ response });
+  } catch (error) {
+    console.error('[API Error]:', error);
+    res.status(500).json({ error: 'Failed to generate response' });
+  }
+});
+
 app.listen(PORT, () => {
-  console.log(`[Voltage] Server running in ${config.env} mode on port ${PORT}`);
-  console.log(`[Voltage] Health check available at http://localhost:${PORT}/api/health`);
+  console.log(`[Server] Voltage AI running on port ${PORT}`);
 });
