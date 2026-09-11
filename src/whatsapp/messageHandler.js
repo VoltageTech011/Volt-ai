@@ -14,9 +14,19 @@ function extractText(message) {
   ).trim();
 }
 
+function getContextInfo(message) {
+  return (
+    message?.extendedTextMessage?.contextInfo ||
+    message?.imageMessage?.contextInfo ||
+    message?.videoMessage?.contextInfo ||
+    null
+  );
+}
+
 function wasVoltageMentioned(message, socket) {
-  const mentionedJid =
-    message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+  const contextInfo = getContextInfo(message);
+
+  const mentionedJid = contextInfo?.mentionedJid || [];
 
   const botJid = socket.user?.id?.split(":")[0];
 
@@ -27,6 +37,29 @@ function wasVoltageMentioned(message, socket) {
   return mentionedJid.some((jid) => {
     return jid.split("@")[0].split(":")[0] === botJid;
   });
+}
+
+function getQuotedText(message) {
+  const contextInfo = getContextInfo(message);
+
+  if (!contextInfo?.quotedMessage) {
+    return "";
+  }
+
+  return extractText(contextInfo.quotedMessage);
+}
+
+function removeVoltageMention(text, socket) {
+  const botJid = socket.user?.id?.split(":")[0];
+
+  if (!botJid) {
+    return text;
+  }
+
+  return text
+    .replace(/@\d+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 async function handleMessages(socket, messages) {
@@ -52,10 +85,24 @@ async function handleMessages(socket, messages) {
         continue;
       }
 
-      const text = extractText(message.message);
+      let text = extractText(message.message);
 
       if (!text) {
         continue;
+      }
+
+      if (group) {
+        text = removeVoltageMention(text, socket);
+      }
+
+      const quotedText = getQuotedText(message.message);
+
+      let context = "";
+
+      if (quotedText) {
+        context = `The user is replying to this previous WhatsApp message:
+
+"${quotedText}"`;
       }
 
       console.log(
@@ -64,7 +111,7 @@ async function handleMessages(socket, messages) {
 
       await socket.sendPresenceUpdate("composing", remoteJid);
 
-      const result = await brainRouter.route(text);
+      const result = await brainRouter.route(text, context);
 
       const response =
         result?.result?.text ||
