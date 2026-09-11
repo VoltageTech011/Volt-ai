@@ -7,23 +7,21 @@ const {
 const path = require("path");
 const fs = require("fs");
 
-const config = require("../config");
+const { handleMessages } = require("./messageHandler");
 
 const baseAuthPath = path.resolve(
   process.env.VOLTAGE_AUTH_DIR || path.join(process.cwd(), "auth")
 );
 
-let sessions = new Map();
-let reconnecting = new Map();
+const sessions = new Map();
+const reconnecting = new Map();
 
 function normalizePhone(phone) {
   return String(phone || "").replace(/\D/g, "");
 }
 
 function getSessionPath(phone) {
-  const cleanPhone = normalizePhone(phone);
-
-  return path.join(baseAuthPath, cleanPhone);
+  return path.join(baseAuthPath, normalizePhone(phone));
 }
 
 async function connectWhatsApp(phone) {
@@ -43,7 +41,8 @@ async function connectWhatsApp(phone) {
     recursive: true
   });
 
-  const { state, saveCreds } = await useMultiFileAuthState(authPath);
+  const { state, saveCreds } =
+    await useMultiFileAuthState(authPath);
 
   const socket = makeWASocket({
     auth: state,
@@ -56,13 +55,22 @@ async function connectWhatsApp(phone) {
 
   socket.ev.on("creds.update", saveCreds);
 
+  socket.ev.on("messages.upsert", async ({ messages }) => {
+    await handleMessages(socket, messages);
+  });
+
   socket.ev.on("connection.update", async (update) => {
-    const { connection, lastDisconnect } = update;
+    const {
+      connection,
+      lastDisconnect
+    } = update;
 
     if (connection === "open") {
       reconnecting.set(cleanPhone, false);
 
-      console.log(`WhatsApp connected: ${cleanPhone}`);
+      console.log(
+        `WhatsApp connected: ${cleanPhone}`
+      );
     }
 
     if (connection === "close") {
@@ -74,7 +82,9 @@ async function connectWhatsApp(phone) {
       if (statusCode === DisconnectReason.loggedOut) {
         reconnecting.delete(cleanPhone);
 
-        console.log(`WhatsApp logged out: ${cleanPhone}`);
+        console.log(
+          `WhatsApp logged out: ${cleanPhone}`
+        );
 
         return;
       }
@@ -86,15 +96,19 @@ async function connectWhatsApp(phone) {
           `WhatsApp connection closed. Reconnecting: ${cleanPhone}`
         );
 
-        setTimeout(() => {
-          reconnecting.set(cleanPhone, false);
+        setTimeout(async () => {
+          try {
+            reconnecting.set(cleanPhone, false);
 
-          connectWhatsApp(cleanPhone).catch((error) => {
+            await connectWhatsApp(cleanPhone);
+          } catch (error) {
+            reconnecting.set(cleanPhone, false);
+
             console.error(
               `WhatsApp reconnect error for ${cleanPhone}:`,
               error
             );
-          });
+          }
         }, 3000);
       }
     }
@@ -113,10 +127,23 @@ async function requestPairingCode(phone) {
   const socket = await connectWhatsApp(cleanPhone);
 
   if (socket.authState?.creds?.registered) {
-    throw new Error("This WhatsApp session is already registered");
+    throw new Error(
+      "This WhatsApp session is already registered"
+    );
   }
 
-  return socket.requestPairingCode(cleanPhone);
+  console.log(
+    `Requesting WhatsApp pairing code for ${cleanPhone}`
+  );
+
+  const code =
+    await socket.requestPairingCode(cleanPhone);
+
+  console.log(
+    `WhatsApp pairing code generated for ${cleanPhone}`
+  );
+
+  return code;
 }
 
 function getSocket(phone) {
