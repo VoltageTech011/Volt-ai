@@ -1,5 +1,6 @@
 const brainRouter = require("../ai/brains/brainRouter");
 const memory = require("../memory/store");
+const { handleCommand } = require("../commands/commandHandler");
 const {
   downloadMedia,
   toDataUrl
@@ -26,6 +27,7 @@ function extractText(message) {
     message?.extendedTextMessage?.text ||
     message?.imageMessage?.caption ||
     message?.videoMessage?.caption ||
+    message?.audioMessage?.caption ||
     message?.documentMessage?.caption ||
     ""
   ).trim();
@@ -33,22 +35,33 @@ function extractText(message) {
 
 function wasVoltageMentioned(message, socket) {
   const contextInfo = getContextInfo(message);
-  const mentionedJid = contextInfo?.mentionedJid || [];
+  const mentionedJid =
+    contextInfo?.mentionedJid || [];
 
-  const botJid = socket.user?.id?.split(":")[0];
+  const botJid =
+    socket.user?.id
+      ?.split(":")[0]
+      ?.split("@")[0];
 
   if (!botJid) {
     return false;
   }
 
   return mentionedJid.some((jid) => {
-    return jid.split("@")[0].split(":")[0] === botJid;
+    return (
+      jid
+        .split("@")[0]
+        .split(":")[0] === botJid
+    );
   });
 }
 
 function getQuotedText(message) {
-  const contextInfo = getContextInfo(message);
-  const quotedMessage = contextInfo?.quotedMessage;
+  const contextInfo =
+    getContextInfo(message);
+
+  const quotedMessage =
+    contextInfo?.quotedMessage;
 
   if (!quotedMessage) {
     return "";
@@ -146,7 +159,8 @@ async function handleMessages(socket, messages) {
         continue;
       }
 
-      const remoteJid = message.key?.remoteJid;
+      const remoteJid =
+        message.key?.remoteJid;
 
       if (
         !remoteJid ||
@@ -155,8 +169,26 @@ async function handleMessages(socket, messages) {
         continue;
       }
 
-      const group = isGroupMessage(remoteJid);
+      /*
+       * Commands are handled before the AI.
+       */
+      const commandHandled =
+        await handleCommand(
+          socket,
+          message
+        );
 
+      if (commandHandled) {
+        continue;
+      }
+
+      const group =
+        isGroupMessage(remoteJid);
+
+      /*
+       * Voltage only responds to
+       * messages that mention it in groups.
+       */
       if (
         group &&
         !wasVoltageMentioned(
@@ -167,17 +199,22 @@ async function handleMessages(socket, messages) {
         continue;
       }
 
-      let text = extractText(message.message);
+      let text =
+        extractText(message.message);
 
       if (group) {
         text = removeMention(text);
       }
 
       const quotedText =
-        getQuotedText(message.message);
+        getQuotedText(
+          message.message
+        );
 
       const history =
-        memory.formatConversation(remoteJid);
+        memory.formatConversation(
+          remoteJid
+        );
 
       let context = "";
 
@@ -192,7 +229,9 @@ async function handleMessages(socket, messages) {
       }
 
       console.log(
-        `${group ? "Group" : "DM"} message from ${remoteJid}: ${text || "[media]"}`
+        `${group ? "Group" : "DM"} message from ${remoteJid}: ${
+          text || "[media]"
+        }`
       );
 
       await socket.sendPresenceUpdate(
@@ -202,22 +241,30 @@ async function handleMessages(socket, messages) {
 
       let result;
 
-      if (message.message.imageMessage) {
+      if (
+        message.message.imageMessage
+      ) {
         result = await processImage(
           message.message,
           text
         );
-      } else if (message.message.audioMessage) {
+      } else if (
+        message.message.audioMessage
+      ) {
         result = await processAudio(
           message.message,
           text
         );
-      } else if (message.message.videoMessage) {
+      } else if (
+        message.message.videoMessage
+      ) {
         result = await processVideo(
           message.message,
           text
         );
-      } else if (message.message.documentMessage) {
+      } else if (
+        message.message.documentMessage
+      ) {
         result = await processDocument(
           message.message,
           text
@@ -232,10 +279,11 @@ async function handleMessages(socket, messages) {
           continue;
         }
 
-        result = await brainRouter.route(
-          text,
-          context
-        );
+        result =
+          await brainRouter.route(
+            text,
+            context
+          );
       }
 
       const response =
