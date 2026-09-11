@@ -12,7 +12,7 @@ let reconnecting = false;
 const authPath = path.join(process.cwd(), "auth");
 
 async function connectWhatsApp() {
-  if (reconnecting) {
+  if (socket) {
     return socket;
   }
 
@@ -32,31 +32,44 @@ async function connectWhatsApp() {
 
     if (connection === "open") {
       reconnecting = false;
-
       console.log("WhatsApp connected.");
     }
 
     if (connection === "close") {
-      reconnecting = false;
+      socket = null;
 
       const statusCode =
         lastDisconnect?.error?.output?.statusCode;
 
       if (statusCode === DisconnectReason.loggedOut) {
         console.log("WhatsApp session logged out.");
-        socket = null;
         return;
       }
 
-      console.log("WhatsApp connection closed. Reconnecting...");
+      if (!reconnecting) {
+        reconnecting = true;
 
-      setTimeout(() => {
-        connectWhatsApp().catch(console.error);
-      }, 3000);
+        console.log("WhatsApp connection closed. Reconnecting...");
+
+        setTimeout(() => {
+          connectWhatsApp().catch((error) => {
+            reconnecting = false;
+            console.error("WhatsApp reconnect error:", error);
+          });
+        }, 3000);
+      }
     }
   });
 
   return socket;
+}
+
+async function requestPairingCode(phone) {
+  if (!socket) {
+    await connectWhatsApp();
+  }
+
+  return socket.requestPairingCode(phone);
 }
 
 function getSocket() {
@@ -65,5 +78,6 @@ function getSocket() {
 
 module.exports = {
   connectWhatsApp,
+  requestPairingCode,
   getSocket
 };
