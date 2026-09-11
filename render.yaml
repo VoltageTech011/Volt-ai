@@ -1,12 +1,11 @@
 services:
   - type: web
-    name: voltage-ai
-    env: node
-    plan: free
+    name: voltage
+    runtime: node
     buildCommand: npm install
     startCommand: npm start
     envVars:
-      - key: PORT
-        value: 10000
       - key: NODE_ENV
         value: production
+      - key: VOLTAGE_NAME
+        value: Voltage
