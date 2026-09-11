@@ -1,11 +1,9 @@
 const express = require("express");
+const path = require("path");
 
 const config = require("./config");
 const healthRoute = require("./routes/health");
 const whatsappRoute = require("./routes/whatsapp");
-const {
-  connectWhatsApp
-} = require("./whatsapp/connection");
 
 const app = express();
 
@@ -21,10 +19,23 @@ app.use(
   })
 );
 
+app.use(express.static(
+  path.join(__dirname, "../public")
+));
+
 app.use("/api/health", healthRoute);
 app.use("/api/whatsapp", whatsappRoute);
 
 app.get("/", (req, res) => {
+  res.sendFile(
+    path.join(
+      __dirname,
+      "../public/index.html"
+    )
+  );
+});
+
+app.get("/api", (req, res) => {
   res.json({
     name: "Voltage AI",
     status: "online",
@@ -44,6 +55,7 @@ app.use(
     );
 
     res.status(500).json({
+      success: false,
       error: "Internal server error"
     });
   }
@@ -57,32 +69,11 @@ const server = app.listen(
       `Voltage running on port ${config.port}`
     );
 
-    startWhatsApp();
+    console.log(
+      "Voltage pairing dashboard is ready."
+    );
   }
 );
-
-async function startWhatsApp() {
-  try {
-    console.log(
-      "Starting Voltage WhatsApp..."
-    );
-
-    await connectWhatsApp();
-
-    console.log(
-      "Voltage WhatsApp initialization complete."
-    );
-  } catch (error) {
-    console.error(
-      "Voltage WhatsApp startup error:",
-      error
-    );
-
-    console.log(
-      "The HTTP server will remain online."
-    );
-  }
-}
 
 process.on(
   "SIGTERM",
