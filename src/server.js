@@ -1,13 +1,11 @@
 const express = require("express");
-const cors = require("cors");
+const path = require("path");
 
 const config = require("./config");
 const healthRoute = require("./routes/health");
 const whatsappRoute = require("./routes/whatsapp");
 
 const app = express();
-
-app.use(cors());
 
 app.use(
   express.json({
@@ -21,20 +19,20 @@ app.use(
   })
 );
 
+app.use(express.static(
+  path.join(__dirname, "../public")
+));
+
 app.use("/api/health", healthRoute);
 app.use("/api/whatsapp", whatsappRoute);
 
 app.get("/", (req, res) => {
-  res.json({
-    name: "Voltage AI",
-    status: "online",
-    owner: "Voltage Lord",
-    platform: "WhatsApp",
-    runtime: "Node.js",
-    version: config.version,
-    mode: config.mode,
-    pairing: "/api/whatsapp/pair"
-  });
+  res.sendFile(
+    path.join(
+      __dirname,
+      "../public/index.html"
+    )
+  );
 });
 
 app.get("/api", (req, res) => {
@@ -72,11 +70,7 @@ const server = app.listen(
     );
 
     console.log(
-      "Voltage API is ready."
-    );
-
-    console.log(
-      "WhatsApp pairing is controlled through the API."
+      "Voltage pairing dashboard is ready."
     );
   }
 );
