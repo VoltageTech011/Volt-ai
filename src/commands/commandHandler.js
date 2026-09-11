@@ -1,5 +1,6 @@
 const config = require("../config");
 const { buildMenu } = require("./menu");
+const memory = require("../memory/store");
 
 const OWNER_NUMBER = String(
   process.env.OWNER_NUMBER || "2349110231750"
