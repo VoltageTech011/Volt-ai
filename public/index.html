@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voltage — WhatsApp Pairing</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: #08090c;
+      color: #f5f5f5;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 460px;
+    }
+
+    .brand {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+
+    .logo {
+      width: 62px;
+      height: 62px;
+      margin: 0 auto 14px;
+      border: 1px solid #333842;
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #111318;
+      font-size: 28px;
+    }
+
+    .brand h1 {
+      font-size: 27px;
+      letter-spacing: -0.8px;
+    }
+
+    .brand p {
+      margin-top: 7px;
+      color: #8c929e;
+      font-size: 14px;
+    }
+
+    .card {
+      background: #101217;
+      border: 1px solid #242832;
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+    }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .description {
+      color: #8c929e;
+      font-size: 13px;
+      line-height: 1.6;
+      margin-bottom: 22px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: #c8ccd4;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    input {
+      width: 100%;
+      height: 50px;
+      border: 1px solid #303540;
+      border-radius: 11px;
+      outline: none;
+      background: #0a0c10;
+      color: #fff;
+      padding: 0 14px;
+      font-size: 15px;
+      transition: border 0.2s;
+    }
+
+    input:focus {
+      border-color: #687080;
+    }
+
+    input::placeholder {
+      color: #555b67;
+    }
+
+    button {
+      width: 100%;
+      height: 50px;
+      margin-top: 14px;
+      border: 0;
+      border-radius: 11px;
+      background: #f1f3f5;
+      color: #08090c;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    button:hover {
+      opacity: 0.88;
+    }
+
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .status {
+      display: none;
+      margin-top: 18px;
+      padding: 13px;
+      border-radius: 10px;
+      background: #0b0d11;
+      border: 1px solid #252a33;
+      color: #aeb4bf;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .code-box {
+      display: none;
+      margin-top: 20px;
+      padding: 20px;
+      text-align: center;
+      border-radius: 14px;
+      background: #0b0d11;
+      border: 1px solid #303540;
+    }
+
+    .code-label {
+      color: #8c929e;
+      font-size: 12px;
+      margin-bottom: 10px;
+    }
+
+    .code {
+      font-size: 30px;
+      font-weight: 800;
+      letter-spacing: 6px;
+      font-family: monospace;
+    }
+
+    .instructions {
+      display: none;
+      margin-top: 20px;
+    }
+
+    .instructions h3 {
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+
+    .instructions ol {
+      padding-left: 20px;
+      color: #9da3ae;
+      font-size: 13px;
+      line-height: 1.8;
+    }
+
+    .footer {
+      text-align: center;
+      margin-top: 20px;
+      color: #555b67;
+      font-size: 11px;
+    }
+
+    .connected {
+      color: #b9f6ca;
+    }
+
+    .error {
+      color: #ff9d9d;
+    }
+  </style>
+</head>
+
+<body>
+
+  <main class="container">
+
+    <div class="brand">
+      <div class="logo">ϟ</div>
+      <h1>Voltage</h1>
+      <p>WhatsApp pairing system</p>
+    </div>
+
+    <div class="card">
+
+      <div class="section-title">
+        Connect WhatsApp
+      </div>
+
+      <div class="description">
+        Enter the WhatsApp number that you want
+        Voltage to connect to. Use international
+        format without the + sign.
+      </div>
+
+      <label for="phone">
+        WhatsApp number
+      </label>
+
+      <input
+        id="phone"
+        type="tel"
+        placeholder="2349110231750"
+        autocomplete="tel"
+      >
+
+      <button id="pairButton">
+        Generate Pairing Code
+      </button>
+
+      <div id="status" class="status"></div>
+
+      <div id="codeBox" class="code-box">
+        <div class="code-label">
+          YOUR PAIRING CODE
+        </div>
+
+        <div id="code" class="code">
+          --------
+        </div>
+      </div>
+
+      <div id="instructions" class="instructions">
+        <h3>Finish pairing</h3>
+
+        <ol>
+          <li>Open WhatsApp on the phone using this number.</li>
+          <li>Open WhatsApp Settings.</li>
+          <li>Open Linked Devices.</li>
+          <li>Select Link a Device.</li>
+          <li>Select Link with phone number instead.</li>
+          <li>Enter the pairing code shown above.</li>
+        </ol>
+      </div>
+
+    </div>
+
+    <div class="footer">
+      Voltage AI · Powered by Thereal_VoltageLord
+    </div>
+
+  </main>
+
+  <script>
+    const phoneInput =
+      document.getElementById("phone");
+
+    const pairButton =
+      document.getElementById("pairButton");
+
+    const statusBox =
+      document.getElementById("status");
+
+    const codeBox =
+      document.getElementById("codeBox");
+
+    const codeElement =
+      document.getElementById("code");
+
+    const instructions =
+      document.getElementById("instructions");
+
+    let statusTimer = null;
+
+    function showStatus(message, type = "") {
+      statusBox.style.display = "block";
+      statusBox.className = "status";
+
+      if (type) {
+        statusBox.classList.add(type);
+      }
+
+      statusBox.textContent = message;
+    }
+
+    function normalizePhone(phone) {
+      return String(phone || "")
+        .replace(/\D/g, "");
+    }
+
+    async function generatePairingCode() {
+      const phone =
+        normalizePhone(phoneInput.value);
+
+      if (!phone) {
+        showStatus(
+          "Enter a WhatsApp phone number.",
+          "error"
+        );
+        return;
+      }
+
+      if (
+        phone.length < 10 ||
+        phone.length > 15
+      ) {
+        showStatus(
+          "Enter a valid international phone number.",
+          "error"
+        );
+        return;
+      }
+
+      pairButton.disabled = true;
+      pairButton.textContent =
+        "Connecting...";
+
+      codeBox.style.display = "none";
+      instructions.style.display = "none";
+
+      showStatus(
+        "Connecting to WhatsApp and requesting a pairing code..."
+      );
+
+      try {
+        const response =
+          await fetch(
+            "/api/whatsapp/pair",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type":
+                  "application/json"
+              },
+              body: JSON.stringify({
+                phone
+              })
+            }
+          );
+
+        const data =
+          await response.json();
+
+        if (!response.ok || !data.success) {
+          throw new Error(
+            data.error ||
+            "Failed to generate pairing code."
+          );
+        }
+
+        codeElement.textContent =
+          data.pairingCode || "--------";
+
+        codeBox.style.display =
+          "block";
+
+        instructions.style.display =
+          "block";
+
+        showStatus(
+          `Pairing code generated for +${data.phone}. Enter it in WhatsApp to connect Voltage.`
+        );
+
+        startStatusCheck(phone);
+
+      } catch (error) {
+        console.error(error);
+
+        showStatus(
+          error.message ||
+          "Something went wrong.",
+          "error"
+        );
+
+        pairButton.disabled = false;
+        pairButton.textContent =
+          "Generate Pairing Code";
+      }
+    }
+
+    async function checkStatus(phone) {
+      try {
+        const response =
+          await fetch(
+            `/api/whatsapp/status?phone=${encodeURIComponent(phone)}`
+          );
+
+        const data =
+          await response.json();
+
+        if (
+          data.success &&
+          data.connected
+        ) {
+          showStatus(
+            `Voltage is connected to +${data.phone}. WhatsApp is online.`,
+            "connected"
+          );
+
+          pairButton.textContent =
+            "WhatsApp Connected";
+
+          pairButton.disabled = true;
+
+          if (statusTimer) {
+            clearInterval(statusTimer);
+            statusTimer = null;
+          }
+        }
+      } catch (error) {
+        console.error(
+          "Status check failed:",
+          error
+        );
+      }
+    }
+
+    function startStatusCheck(phone) {
+      if (statusTimer) {
+        clearInterval(statusTimer);
+      }
+
+      statusTimer =
+        setInterval(
+          () => checkStatus(phone),
+          3000
+        );
+    }
+
+    pairButton.addEventListener(
+      "click",
+      generatePairingCode
+    );
+
+    phoneInput.addEventListener(
+      "keydown",
+      (event) => {
+        if (event.key === "Enter") {
+          generatePairingCode();
+        }
+      }
+    );
+  </script>
+
+</body>
+</html>
