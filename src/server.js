@@ -2,6 +2,7 @@ const express = require("express");
 
 const config = require("./config");
 const healthRoute = require("./routes/health");
+const whatsappRoute = require("./routes/whatsapp");
 
 const app = express();
 
@@ -9,6 +10,7 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: false }));
 
 app.use("/api/health", healthRoute);
+app.use("/api/whatsapp", whatsappRoute);
 
 app.get("/", (req, res) => {
   res.json({
