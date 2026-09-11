@@ -9,154 +9,301 @@ const fs = require("fs");
 
 const { handleMessages } = require("./messageHandler");
 
+const BOT_NUMBER =
+  String(
+    process.env.BOT_NUMBER ||
+    "2349110231750"
+  ).replace(/\D/g, "");
+
 const baseAuthPath = path.resolve(
-  process.env.VOLTAGE_AUTH_DIR || path.join(process.cwd(), "auth")
+  process.env.VOLTAGE_AUTH_DIR ||
+    path.join(process.cwd(), "auth")
 );
 
-const sessions = new Map();
-const reconnecting = new Map();
+const authPath = path.join(
+  baseAuthPath,
+  BOT_NUMBER
+);
+
+let socket = null;
+let state = null;
+let saveCreds = null;
+let connecting = false;
+let reconnectTimer = null;
+let pairingCode = null;
 
 function normalizePhone(phone) {
   return String(phone || "").replace(/\D/g, "");
 }
 
-function getSessionPath(phone) {
-  return path.join(baseAuthPath, normalizePhone(phone));
+function isRegistered() {
+  return Boolean(
+    state?.creds?.registered
+  );
 }
 
-async function connectWhatsApp(phone) {
-  const cleanPhone = normalizePhone(phone);
-
-  if (!cleanPhone) {
-    throw new Error("A valid phone number is required");
+async function createConnection() {
+  if (connecting) {
+    return socket;
   }
 
-  if (sessions.has(cleanPhone)) {
-    return sessions.get(cleanPhone);
-  }
+  connecting = true;
 
-  const authPath = getSessionPath(cleanPhone);
+  try {
+    fs.mkdirSync(authPath, {
+      recursive: true
+    });
 
-  fs.mkdirSync(authPath, {
-    recursive: true
-  });
-
-  const { state, saveCreds } =
-    await useMultiFileAuthState(authPath);
-
-  const socket = makeWASocket({
-    auth: state,
-    printQRInTerminal: false,
-    markOnlineOnConnect: false,
-    syncFullHistory: false
-  });
-
-  sessions.set(cleanPhone, socket);
-
-  socket.ev.on("creds.update", saveCreds);
-
-  socket.ev.on("messages.upsert", async ({ messages }) => {
-    await handleMessages(socket, messages);
-  });
-
-  socket.ev.on("connection.update", async (update) => {
-    const {
-      connection,
-      lastDisconnect
-    } = update;
-
-    if (connection === "open") {
-      reconnecting.set(cleanPhone, false);
-
-      console.log(
-        `WhatsApp connected: ${cleanPhone}`
+    const auth =
+      await useMultiFileAuthState(
+        authPath
       );
-    }
 
-    if (connection === "close") {
-      sessions.delete(cleanPhone);
+    state = auth.state;
+    saveCreds = auth.saveCreds;
 
-      const statusCode =
-        lastDisconnect?.error?.output?.statusCode;
+    socket = makeWASocket({
+      auth: state,
+      printQRInTerminal: false,
+      markOnlineOnConnect: false,
+      syncFullHistory: false
+    });
 
-      if (statusCode === DisconnectReason.loggedOut) {
-        reconnecting.delete(cleanPhone);
+    socket.ev.on(
+      "creds.update",
+      saveCreds
+    );
 
-        console.log(
-          `WhatsApp logged out: ${cleanPhone}`
-        );
-
-        return;
+    socket.ev.on(
+      "messages.upsert",
+      async ({ messages }) => {
+        try {
+          await handleMessages(
+            socket,
+            messages
+          );
+        } catch (error) {
+          console.error(
+            "Voltage message handler error:",
+            error
+          );
+        }
       }
+    );
 
-      if (!reconnecting.get(cleanPhone)) {
-        reconnecting.set(cleanPhone, true);
+    socket.ev.on(
+      "connection.update",
+      async (update) => {
+        const {
+          connection,
+          lastDisconnect
+        } = update;
 
-        console.log(
-          `WhatsApp connection closed. Reconnecting: ${cleanPhone}`
-        );
+        if (connection === "open") {
+          connecting = false;
+          pairingCode = null;
 
-        setTimeout(async () => {
-          try {
-            reconnecting.set(cleanPhone, false);
+          console.log(
+            "================================"
+          );
+          console.log(
+            "⚡ VOLTAGE WHATSAPP CONNECTED"
+          );
+          console.log(
+            `Number: ${BOT_NUMBER}`
+          );
+          console.log(
+            "Status: ONLINE"
+          );
+          console.log(
+            "================================"
+          );
 
-            await connectWhatsApp(cleanPhone);
-          } catch (error) {
-            reconnecting.set(cleanPhone, false);
+          return;
+        }
+
+        if (connection === "close") {
+          socket = null;
+          connecting = false;
+
+          const statusCode =
+            lastDisconnect?.error?.output
+              ?.statusCode;
+
+          if (
+            statusCode ===
+            DisconnectReason.loggedOut
+          ) {
+            console.error(
+              "Voltage WhatsApp session was logged out."
+            );
 
             console.error(
-              `WhatsApp reconnect error for ${cleanPhone}:`,
-              error
+              "Delete the saved auth session and pair again."
             );
-          }
-        }, 3000);
-      }
-    }
-  });
 
-  return socket;
+            return;
+          }
+
+          console.log(
+            "Voltage WhatsApp disconnected."
+          );
+
+          scheduleReconnect();
+        }
+      }
+    );
+
+    connecting = false;
+
+    return socket;
+  } catch (error) {
+    connecting = false;
+    socket = null;
+
+    throw error;
+  }
 }
 
-async function requestPairingCode(phone) {
-  const cleanPhone = normalizePhone(phone);
-
-  if (!cleanPhone) {
-    throw new Error("A valid phone number is required");
+async function requestPairingCode() {
+  if (isRegistered()) {
+    return null;
   }
 
-  const socket = await connectWhatsApp(cleanPhone);
+  if (!socket) {
+    await createConnection();
+  }
 
-  if (socket.authState?.creds?.registered) {
+  if (!socket) {
     throw new Error(
-      "This WhatsApp session is already registered"
+      "WhatsApp socket could not be created."
     );
   }
 
+  if (isRegistered()) {
+    return null;
+  }
+
+  if (pairingCode) {
+    return pairingCode;
+  }
+
   console.log(
-    `Requesting WhatsApp pairing code for ${cleanPhone}`
+    "================================"
+  );
+  console.log(
+    "⚡ VOLTAGE WHATSAPP PAIRING"
+  );
+  console.log(
+    `Number: ${BOT_NUMBER}`
+  );
+  console.log(
+    "Requesting pairing code..."
   );
 
-  const code =
-    await socket.requestPairingCode(cleanPhone);
+  try {
+    pairingCode =
+      await socket.requestPairingCode(
+        BOT_NUMBER
+      );
 
-  console.log(
-    `WhatsApp pairing code generated for ${cleanPhone}`
+    console.log(
+      "================================"
+    );
+    console.log(
+      `PAIRING CODE: ${pairingCode}`
+    );
+    console.log(
+      "================================"
+    );
+    console.log(
+      "Open WhatsApp on the phone you want"
+    );
+    console.log(
+      "to use for Voltage."
+    );
+    console.log(
+      "Go to Linked Devices → Link a device"
+    );
+    console.log(
+      "→ Link with phone number instead."
+    );
+    console.log(
+      "Enter the pairing code above."
+    );
+    console.log(
+      "================================"
+    );
+
+    return pairingCode;
+  } catch (error) {
+    pairingCode = null;
+
+    console.error(
+      "Failed to generate WhatsApp pairing code:",
+      error
+    );
+
+    throw error;
+  }
+}
+
+function scheduleReconnect() {
+  if (reconnectTimer) {
+    return;
+  }
+
+  reconnectTimer = setTimeout(
+    async () => {
+      reconnectTimer = null;
+
+      try {
+        await createConnection();
+      } catch (error) {
+        console.error(
+          "Voltage reconnect error:",
+          error
+        );
+
+        scheduleReconnect();
+      }
+    },
+    3000
   );
-
-  return code;
 }
 
-function getSocket(phone) {
-  return sessions.get(normalizePhone(phone)) || null;
+async function connectWhatsApp() {
+  const currentSocket =
+    await createConnection();
+
+  if (!isRegistered()) {
+    await requestPairingCode();
+  }
+
+  return currentSocket;
 }
 
-function hasSession(phone) {
-  return sessions.has(normalizePhone(phone));
+function getSocket() {
+  return socket;
+}
+
+function hasSession() {
+  return Boolean(socket);
+}
+
+function getBotNumber() {
+  return BOT_NUMBER;
+}
+
+function getPairingCode() {
+  return pairingCode;
 }
 
 module.exports = {
   connectWhatsApp,
   requestPairingCode,
   getSocket,
-  hasSession
+  hasSession,
+  getBotNumber,
+  getPairingCode
 };
