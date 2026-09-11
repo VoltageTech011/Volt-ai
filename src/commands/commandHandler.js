@@ -755,51 +755,36 @@ async function handleCommand(
     }
 
     case "memory": {
-      if (!owner) {
-        await socket.sendMessage(
-          jid,
-          {
-            text:
-              "Owner-only command."
-          }
-        );
+    case "memory": {
+  const messages =
+    memory.getMessages(jid, 100);
 
-        return true;
-      }
+  await socket.sendMessage(
+    jid,
+    {
+      text:
+        `🧠 VOLTAGE MEMORY\n\n` +
+        `Messages stored: ${messages.length}\n` +
+        `Chat: ${group ? "Group" : "Private"}\n` +
+        `Status: Active`
+    }
+  );
 
-      await socket.sendMessage(
-        jid,
-        {
-          text:
-            "🧠 Memory system is active."
-        }
-      );
-
-      return true;
+  return true;
     }
 
     case "clear": {
-      if (!owner) {
-        await socket.sendMessage(
-          jid,
-          {
-            text:
-              "Owner-only command."
-          }
-        );
+  memory.clearConversation(jid);
 
-        return true;
-      }
+  await socket.sendMessage(
+    jid,
+    {
+      text:
+        "🧹 Conversation memory cleared for this chat."
+    }
+  );
 
-      await socket.sendMessage(
-        jid,
-        {
-          text:
-            "🧹 Memory clear command received."
-        }
-      );
-
-      return true;
+  return true;
     }
 
     case "private": {
