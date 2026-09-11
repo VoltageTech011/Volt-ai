@@ -1,4 +1,5 @@
 const brainRouter = require("../ai/brains/brainRouter");
+const memory = require("../memory/store");
 
 function isGroupMessage(jid) {
   return jid.endsWith("@g.us");
@@ -49,13 +50,7 @@ function getQuotedText(message) {
   return extractText(contextInfo.quotedMessage);
 }
 
-function removeVoltageMention(text, socket) {
-  const botJid = socket.user?.id?.split(":")[0];
-
-  if (!botJid) {
-    return text;
-  }
-
+function removeVoltageMention(text) {
   return text
     .replace(/@\d+/g, "")
     .replace(/\s+/g, " ")
@@ -92,38 +87,65 @@ async function handleMessages(socket, messages) {
       }
 
       if (group) {
-        text = removeVoltageMention(text, socket);
+        text = removeVoltageMention(text);
       }
 
       const quotedText = getQuotedText(message.message);
+      const previousConversation = memory.formatConversation(remoteJid);
 
       let context = "";
 
-      if (quotedText) {
-        context = `The user is replying to this previous WhatsApp message:
+      if (previousConversation) {
+        context += `CONVERSATION HISTORY:\n${previousConversation}\n\n`;
+      }
 
-"${quotedText}"`;
+      if (quotedText) {
+        context += `QUOTED WHATSAPP MESSAGE:\n${quotedText}\n`;
       }
 
       console.log(
         `${group ? "Group" : "DM"} message from ${remoteJid}: ${text}`
       );
 
-      await socket.sendPresenceUpdate("composing", remoteJid);
+      memory.addMessage(
+        remoteJid,
+        "user",
+        text
+      );
 
-      const result = await brainRouter.route(text, context);
+      await socket.sendPresenceUpdate(
+        "composing",
+        remoteJid
+      );
+
+      const result = await brainRouter.route(
+        text,
+        context
+      );
 
       const response =
         result?.result?.text ||
         "I couldn't generate a response right now.";
 
+      memory.addMessage(
+        remoteJid,
+        "assistant",
+        response
+      );
+
       await socket.sendMessage(remoteJid, {
         text: response
       });
 
-      await socket.sendPresenceUpdate("paused", remoteJid);
+      await socket.sendPresenceUpdate(
+        "paused",
+        remoteJid
+      );
     } catch (error) {
-      console.error("Message handling error:", error);
+      console.error(
+        "Message handling error:",
+        error
+      );
     }
   }
 }
