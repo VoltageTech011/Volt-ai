@@ -1,9 +1,11 @@
 const express = require("express");
+
 const router = express.Router();
 
 const {
   connectWhatsApp,
-  requestPairingCode
+  requestPairingCode,
+  getSocket
 } = require("../whatsapp/connection");
 
 router.post("/pair", async (req, res) => {
@@ -26,23 +28,36 @@ router.post("/pair", async (req, res) => {
       });
     }
 
-    await connectWhatsApp();
+    await connectWhatsApp(cleanPhone);
 
     const code = await requestPairingCode(cleanPhone);
 
-    res.json({
+    return res.json({
       success: true,
+      phone: cleanPhone,
       code,
       message: "Enter this code in WhatsApp Linked Devices."
     });
   } catch (error) {
     console.error("Pairing error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      error: "Unable to generate pairing code"
+      error: error.message || "Unable to generate pairing code"
     });
   }
+});
+
+router.get("/status/:phone", (req, res) => {
+  const phone = String(req.params.phone).replace(/\D/g, "");
+
+  const socket = getSocket(phone);
+
+  return res.json({
+    success: true,
+    phone,
+    connected: Boolean(socket)
+  });
 });
 
 module.exports = router;
