@@ -12,8 +12,7 @@ const commands = {
     ["add", "Add a member"],
     ["leave", "Leave the group"],
     ["open", "Open group chat"],
-    ["close", "Close group chat"],
-    ["listonline", "List online members"]
+    ["close", "Close group chat"]
   ],
 
   system: [
@@ -22,7 +21,6 @@ const commands = {
     ["ping", "Check Voltage response"],
     ["about", "About Voltage"],
     ["owner", "Get owner contact"],
-    ["pair", "Pair a WhatsApp device"],
     ["memory", "Show memory status"],
     ["clear", "Clear chat memory"],
     ["private", "Private mode"],
@@ -39,38 +37,48 @@ function getCommandCount() {
 }
 
 function buildMenu() {
-  const groupCommands = commands.group
-    .map(
-      ([command, description]) =>
-        `┋ ⬡ ${command} — ${description}`
-    )
-    .join("\n");
+  const groupCommands =
+    commands.group
+      .map(
+        ([command, description]) =>
+          `┋ ⬡ ${command} — ${description}`
+      )
+      .join("\n");
 
-  const systemCommands = commands.system
-    .map(
-      ([command, description]) =>
-        `┋ ⬡ ${command} — ${description}`
-    )
-    .join("\n");
+  const systemCommands =
+    commands.system
+      .map(
+        ([command, description]) =>
+          `┋ ⬡ ${command} — ${description}`
+      )
+      .join("\n");
 
-  return `╭┈───〔 ${config.name.toUpperCase()} ASSISTANT 〕┈───⊷
-├✦ Owner: Thereal_voltagelord0
+  return `╭┈───〔 ${String(
+    config.name || "Voltage"
+  ).toUpperCase()} ASSISTANT 〕┈───⊷
+├✦ Owner: Thereal_VoltageLord
 ├✦ Commands: ${getCommandCount()}
 ├✦ Runtime: Node.js
-├✦ Prefix: .
-├✦ Mode: ${config.mode || "private"}
-├✦ Version: 1.0.0
-╰───────────────────⊷
+├✦ Prefix: ${
+    config.prefix || "."
+  }
+├✦ Mode: ${
+    config.mode || "private"
+  }
+├✦ Version: ${
+    config.version || "1.0.0"
+  }
+╰──────────────────────────────⊷
 
 『 GROUP 』
-╭───────────────────⊷
+╭──────────────────────────────⊷
 ${groupCommands}
-╰───────────────────⊷
+╰──────────────────────────────⊷
 
 『 SYSTEM 』
-╭───────────────────⊷
+╭──────────────────────────────⊷
 ${systemCommands}
-╰───────────────────⊷
+╰──────────────────────────────⊷
 
 > ©️ Powered by Thereal_VoltageLord`;
 }
