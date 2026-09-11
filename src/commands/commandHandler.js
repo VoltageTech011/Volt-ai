@@ -12,8 +12,7 @@ const PREFIX =
   ".";
 
 function normalizePhone(phone) {
-  return String(phone || "")
-    .replace(/\D/g, "");
+  return String(phone || "").replace(/\D/g, "");
 }
 
 function isGroup(message) {
@@ -35,10 +34,7 @@ function getSender(message) {
 }
 
 function isOwner(message) {
-  return (
-    getSender(message) ===
-    OWNER_NUMBER
-  );
+  return getSender(message) === OWNER_NUMBER;
 }
 
 function getText(message) {
@@ -55,16 +51,11 @@ function getText(message) {
 
 function getContextInfo(message) {
   return (
-    message?.message?.extendedTextMessage
-      ?.contextInfo ||
-    message?.message?.imageMessage
-      ?.contextInfo ||
-    message?.message?.videoMessage
-      ?.contextInfo ||
-    message?.message?.audioMessage
-      ?.contextInfo ||
-    message?.message?.documentMessage
-      ?.contextInfo ||
+    message?.message?.extendedTextMessage?.contextInfo ||
+    message?.message?.imageMessage?.contextInfo ||
+    message?.message?.videoMessage?.contextInfo ||
+    message?.message?.audioMessage?.contextInfo ||
+    message?.message?.documentMessage?.contextInfo ||
     null
   );
 }
@@ -74,13 +65,9 @@ function getCommand(text) {
     return null;
   }
 
-  const normalized =
-    text.trim();
+  const normalized = text.trim();
 
-  if (
-    normalized.toLowerCase() ===
-    "menu"
-  ) {
+  if (normalized.toLowerCase() === "menu") {
     return {
       name: "menu",
       args: [],
@@ -88,26 +75,20 @@ function getCommand(text) {
     };
   }
 
-  if (
-    !normalized.startsWith(PREFIX)
-  ) {
+  if (!normalized.startsWith(PREFIX)) {
     return null;
   }
 
-  const body =
-    normalized
-      .slice(PREFIX.length)
-      .trim();
+  const body = normalized
+    .slice(PREFIX.length)
+    .trim();
 
   if (!body) {
     return null;
   }
 
-  const parts =
-    body.split(/\s+/);
-
-  const name =
-    parts.shift().toLowerCase();
+  const parts = body.split(/\s+/);
+  const name = parts.shift().toLowerCase();
 
   return {
     name,
@@ -116,117 +97,73 @@ function getCommand(text) {
   };
 }
 
-async function getGroupMetadata(
-  socket,
-  jid
-) {
+async function getGroupMetadata(socket, jid) {
   try {
-    return await socket.groupMetadata(
-      jid
-    );
+    return await socket.groupMetadata(jid);
   } catch (error) {
-    console.error(
-      "Group metadata error:",
-      error
-    );
-
+    console.error("Group metadata error:", error);
     return null;
   }
 }
 
-async function isGroupAdmin(
-  socket,
-  message
-) {
+async function isGroupAdmin(socket, message) {
   if (!isGroup(message)) {
     return false;
   }
 
-  const jid =
-    message.key.remoteJid;
-
-  const metadata =
-    await getGroupMetadata(
-      socket,
-      jid
-    );
+  const jid = message.key.remoteJid;
+  const metadata = await getGroupMetadata(socket, jid);
 
   if (!metadata) {
     return false;
   }
 
-  const sender =
-    getSender(message);
+  const sender = getSender(message);
 
   return metadata.participants.some(
-    (participant) =>
-      normalizePhone(
-        participant.id
-      ) === sender &&
+    participant =>
+      normalizePhone(participant.id) === sender &&
       Boolean(participant.admin)
   );
 }
 
-async function isBotAdmin(
-  socket,
-  message
-) {
+async function isBotAdmin(socket, message) {
   if (!isGroup(message)) {
     return false;
   }
 
-  const jid =
-    message.key.remoteJid;
-
-  const metadata =
-    await getGroupMetadata(
-      socket,
-      jid
-    );
+  const jid = message.key.remoteJid;
+  const metadata = await getGroupMetadata(socket, jid);
 
   if (!metadata) {
     return false;
   }
 
-  const botNumber =
-    normalizePhone(
-      socket.user?.id
-    );
+  const botNumber = normalizePhone(
+    socket.user?.id
+  );
 
   return metadata.participants.some(
-    (participant) =>
-      normalizePhone(
-        participant.id
-      ) === botNumber &&
+    participant =>
+      normalizePhone(participant.id) === botNumber &&
       Boolean(participant.admin)
   );
 }
 
-function getTargetFromReply(
-  message
-) {
-  const context =
-    getContextInfo(message);
+function getTargetFromReply(message) {
+  const context = getContextInfo(message);
 
-  return (
-    context?.participant ||
-    null
-  );
+  return context?.participant || null;
 }
 
-function getTargetJid(
-  message,
-  args
-) {
-  const quoted =
-    getTargetFromReply(message);
+function getTargetJid(message, args) {
+  const quoted = getTargetFromReply(message);
 
   if (quoted) {
     return quoted;
   }
 
-  const number =
-    normalizePhone(args?.[0]);
+  const number = normalizePhone(args?.[0]);
 
   if (!number) {
     return null;
@@ -235,399 +172,243 @@ function getTargetJid(
   return `${number}@s.whatsapp.net`;
 }
 
-async function sendOwnerContact(
-  socket,
-  jid
-) {
-  await socket.sendMessage(
-    jid,
-    {
-      contacts: {
-        displayName:
-          "Thereal_VoltageLord",
-
-        contacts: [
-          {
-            vcard:
-              "BEGIN:VCARD\n" +
-              "VERSION:3.0\n" +
-              "FN:Thereal_VoltageLord\n" +
-              "ORG:Voltage\n" +
-              "TEL;type=CELL;type=VOICE;waid=2349110231750:+2349110231750\n" +
-              "END:VCARD"
-          }
-        ]
-      }
+async function sendOwnerContact(socket, jid) {
+  await socket.sendMessage(jid, {
+    contacts: {
+      displayName: "Thereal_VoltageLord",
+      contacts: [
+        {
+          vcard:
+            "BEGIN:VCARD\n" +
+            "VERSION:3.0\n" +
+            "FN:Thereal_VoltageLord\n" +
+            "ORG:Voltage\n" +
+            "TEL;type=CELL;type=VOICE;waid=2349110231750:+2349110231750\n" +
+            "END:VCARD"
+        }
+      ]
     }
-  );
+  });
 }
 
-async function handleTagAll(
-  socket,
-  message,
-  rawArgs
-) {
-  const jid =
-    message.key.remoteJid;
-
-  const metadata =
-    await getGroupMetadata(
-      socket,
-      jid
-    );
+async function handleTagAll(socket, message, rawArgs) {
+  const jid = message.key.remoteJid;
+  const metadata = await getGroupMetadata(socket, jid);
 
   if (!metadata) {
-    throw new Error(
-      "Unable to read group members."
-    );
+    throw new Error("Unable to read group members.");
   }
 
-  const participants =
-    metadata.participants || [];
+  const participants = metadata.participants || [];
 
-  const mentions =
-    participants.map(
-      (participant) =>
-        participant.id
-    );
-
-  await socket.sendMessage(
-    jid,
-    {
-      text:
-        rawArgs ||
-        "⚡ Voltage calling everyone.",
-      mentions
-    }
+  const mentions = participants.map(
+    participant => participant.id
   );
+
+  await socket.sendMessage(jid, {
+    text:
+      rawArgs ||
+      "⚡ Voltage calling everyone.",
+    mentions
+  });
 }
 
-async function handleTagAdmins(
-  socket,
-  message,
-  rawArgs
-) {
-  const jid =
-    message.key.remoteJid;
-
-  const metadata =
-    await getGroupMetadata(
-      socket,
-      jid
-    );
+async function handleTagAdmins(socket, message, rawArgs) {
+  const jid = message.key.remoteJid;
+  const metadata = await getGroupMetadata(socket, jid);
 
   if (!metadata) {
-    throw new Error(
-      "Unable to read group information."
-    );
+    throw new Error("Unable to read group information.");
   }
 
-  const admins =
-    metadata.participants
-      .filter(
-        (participant) =>
-          Boolean(participant.admin)
-      )
-      .map(
-        (participant) =>
-          participant.id
-      );
+  const admins = metadata.participants
+    .filter(participant => Boolean(participant.admin))
+    .map(participant => participant.id);
 
   if (!admins.length) {
-    await socket.sendMessage(
-      jid,
-      {
-        text:
-          "No group admins found."
-      }
-    );
+    await socket.sendMessage(jid, {
+      text: "No group admins found."
+    });
 
     return;
   }
 
-  await socket.sendMessage(
-    jid,
-    {
-      text:
-        rawArgs ||
-        "⚡ Admin attention required.",
-      mentions: admins
-    }
-  );
+  await socket.sendMessage(jid, {
+    text:
+      rawArgs ||
+      "⚡ Admin attention required.",
+    mentions: admins
+  });
 }
 
-async function handlePromote(
-  socket,
-  message,
-  args
-) {
-  const target =
-    getTargetJid(
-      message,
-      args
-    );
+async function handlePromote(socket, message, args) {
+  const target = getTargetJid(message, args);
+  const jid = message.key.remoteJid;
 
   if (!target) {
-    await socket.sendMessage(
-      message.key.remoteJid,
-      {
-        text:
-          `Reply to a member or use ${PREFIX}promote 234xxxxxxxxxx`
-      }
-    );
+    await socket.sendMessage(jid, {
+      text:
+        `Reply to a member or use ${PREFIX}promote 234xxxxxxxxxx`
+    });
 
     return;
   }
 
   await socket.groupParticipantsUpdate(
-    message.key.remoteJid,
+    jid,
     [target],
     "promote"
   );
 
-  await socket.sendMessage(
-    message.key.remoteJid,
-    {
-      text:
-        "⚡ Member promoted."
-    }
-  );
+  await socket.sendMessage(jid, {
+    text: "⚡ Member promoted."
+  });
 }
 
-async function handleDemote(
-  socket,
-  message,
-  args
-) {
-  const target =
-    getTargetJid(
-      message,
-      args
-    );
+async function handleDemote(socket, message, args) {
+  const target = getTargetJid(message, args);
+  const jid = message.key.remoteJid;
 
   if (!target) {
-    await socket.sendMessage(
-      message.key.remoteJid,
-      {
-        text:
-          `Reply to a member or use ${PREFIX}demote 234xxxxxxxxxx`
-      }
-    );
+    await socket.sendMessage(jid, {
+      text:
+        `Reply to a member or use ${PREFIX}demote 234xxxxxxxxxx`
+    });
 
     return;
   }
 
   await socket.groupParticipantsUpdate(
-    message.key.remoteJid,
+    jid,
     [target],
     "demote"
   );
 
-  await socket.sendMessage(
-    message.key.remoteJid,
-    {
-      text:
-        "⚡ Member demoted."
-    }
-  );
+  await socket.sendMessage(jid, {
+    text: "⚡ Member demoted."
+  });
 }
 
-async function handleKick(
-  socket,
-  message,
-  args
-) {
-  const target =
-    getTargetJid(
-      message,
-      args
-    );
+async function handleKick(socket, message, args) {
+  const target = getTargetJid(message, args);
+  const jid = message.key.remoteJid;
 
   if (!target) {
-    await socket.sendMessage(
-      message.key.remoteJid,
-      {
-        text:
-          `Reply to a member or use ${PREFIX}kick 234xxxxxxxxxx`
-      }
-    );
+    await socket.sendMessage(jid, {
+      text:
+        `Reply to a member or use ${PREFIX}kick 234xxxxxxxxxx`
+    });
 
     return;
   }
 
   await socket.groupParticipantsUpdate(
-    message.key.remoteJid,
+    jid,
     [target],
     "remove"
   );
 
-  await socket.sendMessage(
-    message.key.remoteJid,
-    {
-      text:
-        "⚡ Member removed."
-    }
-  );
+  await socket.sendMessage(jid, {
+    text: "⚡ Member removed."
+  });
 }
 
-async function handleAdd(
-  socket,
-  message,
-  args
-) {
-  const number =
-    normalizePhone(args?.[0]);
+async function handleAdd(socket, message, args) {
+  const jid = message.key.remoteJid;
+  const number = normalizePhone(args?.[0]);
 
   if (!number) {
-    await socket.sendMessage(
-      message.key.remoteJid,
-      {
-        text:
-          `Use ${PREFIX}add 234xxxxxxxxxx`
-      }
-    );
+    await socket.sendMessage(jid, {
+      text:
+        `Use ${PREFIX}add 234xxxxxxxxxx`
+    });
 
     return;
   }
 
-  const target =
-    `${number}@s.whatsapp.net`;
+  const target = `${number}@s.whatsapp.net`;
 
   await socket.groupParticipantsUpdate(
-    message.key.remoteJid,
+    jid,
     [target],
     "add"
   );
 
-  await socket.sendMessage(
-    message.key.remoteJid,
-    {
-      text:
-        `⚡ Add request sent for ${number}.`
-    }
-  );
+  await socket.sendMessage(jid, {
+    text:
+      `⚡ Add request sent for ${number}.`
+  });
 }
 
-async function handleDelete(
-  socket,
-  message
-) {
-  const jid =
-    message.key.remoteJid;
-
-  const context =
-    getContextInfo(message);
-
-  const stanzaId =
-    context?.stanzaId;
+async function handleDelete(socket, message) {
+  const jid = message.key.remoteJid;
+  const context = getContextInfo(message);
+  const stanzaId = context?.stanzaId;
 
   if (!stanzaId) {
-    await socket.sendMessage(
-      jid,
-      {
-        text:
-          "Reply to the message you want me to delete."
-      }
-    );
+    await socket.sendMessage(jid, {
+      text:
+        "Reply to the message you want me to delete."
+    });
 
     return;
   }
 
-  await socket.sendMessage(
-    jid,
-    {
-      delete: {
-        remoteJid: jid,
-        fromMe: false,
-        id: stanzaId,
-        participant:
-          context.participant
-      }
+  await socket.sendMessage(jid, {
+    delete: {
+      remoteJid: jid,
+      fromMe: false,
+      id: stanzaId,
+      participant: context.participant
     }
-  );
+  });
 }
 
-async function handleWarn(
-  socket,
-  message,
-  args
-) {
-  const target =
-    getTargetJid(
-      message,
-      args
-    );
+async function handleWarn(socket, message, args) {
+  const jid = message.key.remoteJid;
+  const target = getTargetJid(message, args);
 
   if (!target) {
-    await socket.sendMessage(
-      message.key.remoteJid,
-      {
-        text:
-          `Reply to a member or use ${PREFIX}warn 234xxxxxxxxxx`
-      }
-    );
+    await socket.sendMessage(jid, {
+      text:
+        `Reply to a member or use ${PREFIX}warn 234xxxxxxxxxx`
+    });
 
     return;
   }
 
-  const number =
-    normalizePhone(target);
+  const number = normalizePhone(target);
 
-  await socket.sendMessage(
-    message.key.remoteJid,
-    {
-      text:
-        `⚠️ Warning issued to @${number}`,
-      mentions: [target]
-    }
-  );
+  await socket.sendMessage(jid, {
+    text:
+      `⚠️ Warning issued to @${number}`,
+    mentions: [target]
+  });
 }
 
-async function handleStatus(
-  socket,
-  jid
-) {
-  const connected =
-    Boolean(socket.user);
+async function handleStatus(socket, jid) {
+  const connected = Boolean(socket.user);
 
-  await socket.sendMessage(
-    jid,
-    {
-      text:
-        `⚡ VOLTAGE STATUS\n\n` +
-        `Status: ${
-          connected
-            ? "ONLINE"
-            : "OFFLINE"
-        }\n` +
-        `Platform: WhatsApp\n` +
-        `Runtime: Node.js\n` +
-        `Mode: ${
-          config.mode ||
-          "private"
-        }\n` +
-        `Version: ${
-          config.version ||
-          "1.0.0"
-        }\n` +
-        `Bot: ${OWNER_NUMBER}`
-    }
-  );
+  await socket.sendMessage(jid, {
+    text:
+      `⚡ VOLTAGE STATUS\n\n` +
+      `Status: ${connected ? "ONLINE" : "OFFLINE"}\n` +
+      `Platform: WhatsApp\n` +
+      `Runtime: Node.js\n` +
+      `Mode: ${config.mode || "private"}\n` +
+      `Version: ${config.version || "1.0.0"}\n` +
+      `Bot: ${OWNER_NUMBER}`
+  });
 }
 
-async function handleCommand(
-  socket,
-  message
-) {
-  const text =
-    getText(message);
+async function handleCommand(socket, message) {
+  const text = getText(message);
 
   if (!text) {
     return false;
   }
 
-  const command =
-    getCommand(text);
+  const command = getCommand(text);
 
   if (!command) {
     return false;
@@ -639,14 +420,9 @@ async function handleCommand(
     rawArgs
   } = command;
 
-  const jid =
-    message.key.remoteJid;
-
-  const group =
-    isGroup(message);
-
-  const owner =
-    isOwner(message);
+  const jid = message.key.remoteJid;
+  const group = isGroup(message);
+  const owner = isOwner(message);
 
   const groupCommands = [
     "tagall",
@@ -666,13 +442,10 @@ async function handleCommand(
     groupCommands.includes(name) &&
     !group
   ) {
-    await socket.sendMessage(
-      jid,
-      {
-        text:
-          "That command only works in groups."
-      }
-    );
+    await socket.sendMessage(jid, {
+      text:
+        "That command only works in groups."
+    });
 
     return true;
   }
@@ -680,194 +453,154 @@ async function handleCommand(
   switch (name) {
     case "menu":
     case "help": {
-      await socket.sendMessage(
-        jid,
-        {
-          text: buildMenu()
-        }
-      );
+      await socket.sendMessage(jid, {
+        text: buildMenu()
+      });
 
       return true;
     }
 
     case "ping": {
-      const start =
-        Date.now();
+      const start = Date.now();
 
-      await socket.sendMessage(
-        jid,
-        {
-          text:
-            "⚡ Voltage is online."
-        }
-      );
+      await socket.sendMessage(jid, {
+        text: "⚡ Voltage is online."
+      });
 
-      const latency =
-        Date.now() - start;
+      const latency = Date.now() - start;
 
-      await socket.sendMessage(
-        jid,
-        {
-          text:
-            `PONG: ${latency}ms`
-        }
-      );
+      await socket.sendMessage(jid, {
+        text: `PONG: ${latency}ms`
+      });
 
       return true;
     }
 
     case "about": {
-      await socket.sendMessage(
-        jid,
-        {
-          text:
-            `⚡ VOLTAGE AI\n\n` +
-            `A personal multi-capability AI system built by Voltage Lord.\n\n` +
-            `Owner: Thereal_VoltageLord\n` +
-            `Platform: WhatsApp\n` +
-            `Runtime: Node.js\n` +
-            `Version: ${
-              config.version ||
-              "1.0.0"
-            }`
-        }
-      );
+      await socket.sendMessage(jid, {
+        text:
+          `⚡ VOLTAGE AI\n\n` +
+          `A personal multi-capability AI system built by Voltage Lord.\n\n` +
+          `Owner: Thereal_VoltageLord\n` +
+          `Platform: WhatsApp\n` +
+          `Runtime: Node.js\n` +
+          `Version: ${config.version || "1.0.0"}`
+      });
 
       return true;
     }
 
     case "owner": {
-      await sendOwnerContact(
-        socket,
-        jid
-      );
-
+      await sendOwnerContact(socket, jid);
       return true;
     }
 
     case "status": {
-      await handleStatus(
-        socket,
-        jid
-      );
-
+      await handleStatus(socket, jid);
       return true;
     }
 
     case "memory": {
-    case "memory": {
-  const messages =
-    memory.getMessages(jid, 100);
+      const messages = memory.getMessages(
+        jid,
+        100
+      );
 
-  await socket.sendMessage(
-    jid,
-    {
-      text:
-        `🧠 VOLTAGE MEMORY\n\n` +
-        `Messages stored: ${messages.length}\n` +
-        `Chat: ${group ? "Group" : "Private"}\n` +
-        `Status: Active`
-    }
-  );
+      await socket.sendMessage(jid, {
+        text:
+          `🧠 VOLTAGE MEMORY\n\n` +
+          `Messages stored: ${messages.length}\n` +
+          `Chat: ${group ? "Group" : "Private"}\n` +
+          `Status: Active`
+      });
 
-  return true;
+      return true;
     }
 
     case "clear": {
-  memory.clearConversation(jid);
+      memory.clearConversation(jid);
 
-  await socket.sendMessage(
-    jid,
-    {
-      text:
-        "🧹 Conversation memory cleared for this chat."
-    }
-  );
+      await socket.sendMessage(jid, {
+        text:
+          "🧹 Conversation memory cleared for this chat."
+      });
 
-  return true;
+      return true;
     }
 
     case "private": {
       if (!owner) {
-        await socket.sendMessage(
-          jid,
-          {
-            text:
-              "Owner-only command."
-          }
-        );
+        await socket.sendMessage(jid, {
+          text: "Owner-only command."
+        });
 
         return true;
       }
 
-      await socket.sendMessage(
-        jid,
-        {
-          text:
-            "🔒 Voltage mode set to PRIVATE."
-        }
-      );
+      await socket.sendMessage(jid, {
+        text:
+          "🔒 Voltage mode set to PRIVATE."
+      });
 
       return true;
     }
 
     case "public": {
       if (!owner) {
-        await socket.sendMessage(
-          jid,
-          {
-            text:
-              "Owner-only command."
-          }
-        );
+        await socket.sendMessage(jid, {
+          text: "Owner-only command."
+        });
 
         return true;
       }
 
-      await socket.sendMessage(
-        jid,
-        {
+      await socket.sendMessage(jid, {
+        text:
+          "🌐 Voltage mode set to PUBLIC."
+      });
+
+      return true;
+    }
+
+    case "pair": {
+      if (!owner) {
+        await socket.sendMessage(jid, {
           text:
-            "🌐 Voltage mode set to PUBLIC."
-        }
-      );
+            "Only Voltage's owner can pair a device."
+        });
+
+        return true;
+      }
+
+      await socket.sendMessage(jid, {
+        text:
+          "⚡ Pairing is handled through the WhatsApp connection system."
+      });
 
       return true;
     }
 
     case "tagall": {
       const admin =
-        await isGroupAdmin(
-          socket,
-          message
-        );
+        await isGroupAdmin(socket, message);
 
       const botAdmin =
-        await isBotAdmin(
-          socket,
-          message
-        );
+        await isBotAdmin(socket, message);
 
       if (!admin && !owner) {
-        await socket.sendMessage(
-          jid,
-          {
-            text:
-              "Only group admins can use this command."
-          }
-        );
+        await socket.sendMessage(jid, {
+          text:
+            "Only group admins can use this command."
+        });
 
         return true;
       }
 
       if (!botAdmin) {
-        await socket.sendMessage(
-          jid,
-          {
-            text:
-              "I need to be a group admin to tag everyone."
-          }
-        );
+        await socket.sendMessage(jid, {
+          text:
+            "I need to be a group admin to tag everyone."
+        });
 
         return true;
       }
@@ -883,19 +616,13 @@ async function handleCommand(
 
     case "tagadmin": {
       const admin =
-        await isGroupAdmin(
-          socket,
-          message
-        );
+        await isGroupAdmin(socket, message);
 
       if (!admin && !owner) {
-        await socket.sendMessage(
-          jid,
-          {
-            text:
-              "Only group admins can use this command."
-          }
-        );
+        await socket.sendMessage(jid, {
+          text:
+            "Only group admins can use this command."
+        });
 
         return true;
       }
@@ -912,37 +639,25 @@ async function handleCommand(
     case "promote":
     case "demote": {
       const admin =
-        await isGroupAdmin(
-          socket,
-          message
-        );
+        await isGroupAdmin(socket, message);
 
       const botAdmin =
-        await isBotAdmin(
-          socket,
-          message
-        );
+        await isBotAdmin(socket, message);
 
       if (!admin && !owner) {
-        await socket.sendMessage(
-          jid,
-          {
-            text:
-              "Only group admins can use this command."
-          }
-        );
+        await socket.sendMessage(jid, {
+          text:
+            "Only group admins can use this command."
+        });
 
         return true;
       }
 
       if (!botAdmin) {
-        await socket.sendMessage(
-          jid,
-          {
-            text:
-              "I need to be a group admin for that."
-          }
-        );
+        await socket.sendMessage(jid, {
+          text:
+            "I need to be a group admin for that."
+        });
 
         return true;
       }
@@ -966,37 +681,25 @@ async function handleCommand(
 
     case "kick": {
       const admin =
-        await isGroupAdmin(
-          socket,
-          message
-        );
+        await isGroupAdmin(socket, message);
 
       const botAdmin =
-        await isBotAdmin(
-          socket,
-          message
-        );
+        await isBotAdmin(socket, message);
 
       if (!admin && !owner) {
-        await socket.sendMessage(
-          jid,
-          {
-            text:
-              "Only group admins can use this command."
-          }
-        );
+        await socket.sendMessage(jid, {
+          text:
+            "Only group admins can use this command."
+        });
 
         return true;
       }
 
       if (!botAdmin) {
-        await socket.sendMessage(
-          jid,
-          {
-            text:
-              "I need to be a group admin to kick members."
-          }
-        );
+        await socket.sendMessage(jid, {
+          text:
+            "I need to be a group admin to kick members."
+        });
 
         return true;
       }
@@ -1012,37 +715,25 @@ async function handleCommand(
 
     case "add": {
       const admin =
-        await isGroupAdmin(
-          socket,
-          message
-        );
+        await isGroupAdmin(socket, message);
 
       const botAdmin =
-        await isBotAdmin(
-          socket,
-          message
-        );
+        await isBotAdmin(socket, message);
 
       if (!admin && !owner) {
-        await socket.sendMessage(
-          jid,
-          {
-            text:
-              "Only group admins can use this command."
-          }
-        );
+        await socket.sendMessage(jid, {
+          text:
+            "Only group admins can use this command."
+        });
 
         return true;
       }
 
       if (!botAdmin) {
-        await socket.sendMessage(
-          jid,
-          {
-            text:
-              "I need to be a group admin to add members."
-          }
-        );
+        await socket.sendMessage(jid, {
+          text:
+            "I need to be a group admin to add members."
+        });
 
         return true;
       }
@@ -1058,19 +749,13 @@ async function handleCommand(
 
     case "del": {
       const admin =
-        await isGroupAdmin(
-          socket,
-          message
-        );
+        await isGroupAdmin(socket, message);
 
       if (!admin && !owner) {
-        await socket.sendMessage(
-          jid,
-          {
-            text:
-              "Only group admins can delete messages."
-          }
-        );
+        await socket.sendMessage(jid, {
+          text:
+            "Only group admins can delete messages."
+        });
 
         return true;
       }
@@ -1085,19 +770,13 @@ async function handleCommand(
 
     case "warn": {
       const admin =
-        await isGroupAdmin(
-          socket,
-          message
-        );
+        await isGroupAdmin(socket, message);
 
       if (!admin && !owner) {
-        await socket.sendMessage(
-          jid,
-          {
-            text:
-              "Only group admins can use warn."
-          }
-        );
+        await socket.sendMessage(jid, {
+          text:
+            "Only group admins can use warn."
+        });
 
         return true;
       }
@@ -1113,28 +792,20 @@ async function handleCommand(
 
     case "leave": {
       if (!owner) {
-        await socket.sendMessage(
-          jid,
-          {
-            text:
-              "Only Voltage's owner can make it leave a group."
-          }
-        );
+        await socket.sendMessage(jid, {
+          text:
+            "Only Voltage's owner can make it leave a group."
+        });
 
         return true;
       }
 
-      await socket.sendMessage(
-        jid,
-        {
-          text:
-            "⚡ Voltage is leaving this group."
-        }
-      );
+      await socket.sendMessage(jid, {
+        text:
+          "⚡ Voltage is leaving this group."
+      });
 
-      await socket.groupLeave(
-        jid
-      );
+      await socket.groupLeave(jid);
 
       return true;
     }
@@ -1142,37 +813,25 @@ async function handleCommand(
     case "open":
     case "close": {
       const admin =
-        await isGroupAdmin(
-          socket,
-          message
-        );
+        await isGroupAdmin(socket, message);
 
       const botAdmin =
-        await isBotAdmin(
-          socket,
-          message
-        );
+        await isBotAdmin(socket, message);
 
       if (!admin && !owner) {
-        await socket.sendMessage(
-          jid,
-          {
-            text:
-              "Only group admins can change group settings."
-          }
-        );
+        await socket.sendMessage(jid, {
+          text:
+            "Only group admins can change group settings."
+        });
 
         return true;
       }
 
       if (!botAdmin) {
-        await socket.sendMessage(
-          jid,
-          {
-            text:
-              "I need to be a group admin for that."
-          }
-        );
+        await socket.sendMessage(jid, {
+          text:
+            "I need to be a group admin for that."
+        });
 
         return true;
       }
@@ -1184,15 +843,12 @@ async function handleCommand(
           : "announcement"
       );
 
-      await socket.sendMessage(
-        jid,
-        {
-          text:
-            name === "open"
-              ? "🔓 Group opened."
-              : "🔒 Group closed."
-        }
-      );
+      await socket.sendMessage(jid, {
+        text:
+          name === "open"
+            ? "🔓 Group opened."
+            : "🔒 Group closed."
+      });
 
       return true;
     }
