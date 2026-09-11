@@ -1,5 +1,9 @@
 const brainRouter = require("../ai/brains/brainRouter");
 const memory = require("../memory/store");
+const {
+  downloadMedia,
+  toDataUrl
+} = require("./media");
 
 function isGroupMessage(jid) {
   return jid.endsWith("@g.us");
@@ -29,7 +33,6 @@ function extractText(message) {
 
 function wasVoltageMentioned(message, socket) {
   const contextInfo = getContextInfo(message);
-
   const mentionedJid = contextInfo?.mentionedJid || [];
 
   const botJid = socket.user?.id?.split(":")[0];
@@ -45,12 +48,13 @@ function wasVoltageMentioned(message, socket) {
 
 function getQuotedText(message) {
   const contextInfo = getContextInfo(message);
+  const quotedMessage = contextInfo?.quotedMessage;
 
-  if (!contextInfo?.quotedMessage) {
+  if (!quotedMessage) {
     return "";
   }
 
-  return extractText(contextInfo.quotedMessage);
+  return extractText(quotedMessage);
 }
 
 function removeMention(text) {
@@ -60,121 +64,74 @@ function removeMention(text) {
     .trim();
 }
 
-async function downloadMedia(socket, message) {
-  const type = Object.keys(message)[0];
+async function processImage(message, text) {
+  const media = message.imageMessage;
 
-  if (
-    type !== "imageMessage" &&
-    type !== "audioMessage" &&
-    type !== "videoMessage" &&
-    type !== "documentMessage"
-  ) {
-    return null;
-  }
-
-  const stream = await require("@whiskeysockets/baileys")
-    .downloadContentFromMessage(
-      message[type],
-      type.replace("Message", "")
-    );
-
-  const chunks = [];
-
-  for await (const chunk of stream) {
-    chunks.push(chunk);
-  }
-
-  return Buffer.concat(chunks);
-}
-
-async function handleImage(socket, message, text) {
-  const imageMessage = message.imageMessage;
-
-  const buffer = await downloadMedia(socket, message);
-
-  if (!buffer) {
-    throw new Error("Unable to download image");
-  }
-
-  const base64 = buffer.toString("base64");
+  const buffer = await downloadMedia(
+    message,
+    "imageMessage"
+  );
 
   const mime =
-    imageMessage.mimetype || "image/jpeg";
-
-  const dataUrl = `data:${mime};base64,${base64}`;
+    media.mimetype || "image/jpeg";
 
   return brainRouter.vision(
-    text || "Describe and analyze this image.",
-    dataUrl
+    text || "Analyze this image.",
+    toDataUrl(buffer, mime)
   );
 }
 
-async function handleAudio(socket, message, text) {
-  const audioMessage = message.audioMessage;
+async function processAudio(message, text) {
+  const media = message.audioMessage;
 
-  const buffer = await downloadMedia(socket, message);
-
-  if (!buffer) {
-    throw new Error("Unable to download audio");
-  }
-
-  const base64 = buffer.toString("base64");
+  const buffer = await downloadMedia(
+    message,
+    "audioMessage"
+  );
 
   const mime =
-    audioMessage.mimetype || "audio/mp4";
-
-  const dataUrl = `data:${mime};base64,${base64}`;
+    media.mimetype || "audio/mp4";
 
   return brainRouter.audio(
     text || "Analyze this audio.",
-    dataUrl,
+    toDataUrl(buffer, mime),
     mime
   );
 }
 
-async function handleVideo(socket, message, text) {
-  const videoMessage = message.videoMessage;
+async function processVideo(message, text) {
+  const media = message.videoMessage;
 
-  const buffer = await downloadMedia(socket, message);
-
-  if (!buffer) {
-    throw new Error("Unable to download video");
-  }
-
-  const base64 = buffer.toString("base64");
+  const buffer = await downloadMedia(
+    message,
+    "videoMessage"
+  );
 
   const mime =
-    videoMessage.mimetype || "video/mp4";
-
-  const dataUrl = `data:${mime};base64,${base64}`;
+    media.mimetype || "video/mp4";
 
   return brainRouter.video(
     text || "Analyze this video.",
-    dataUrl,
+    toDataUrl(buffer, mime),
     mime
   );
 }
 
-async function handleDocument(socket, message, text) {
-  const documentMessage = message.documentMessage;
+async function processDocument(message, text) {
+  const media = message.documentMessage;
 
-  const buffer = await downloadMedia(socket, message);
-
-  if (!buffer) {
-    throw new Error("Unable to download document");
-  }
-
-  const base64 = buffer.toString("base64");
+  const buffer = await downloadMedia(
+    message,
+    "documentMessage"
+  );
 
   const mime =
-    documentMessage.mimetype ||
+    media.mimetype ||
     "application/octet-stream";
-
-  const dataUrl = `data:${mime};base64,${base64}`;
 
   return brainRouter.document(
     text || "Analyze this document.",
-    dataUrl
+    toDataUrl(buffer, mime)
   );
 }
 
@@ -191,7 +148,10 @@ async function handleMessages(socket, messages) {
 
       const remoteJid = message.key?.remoteJid;
 
-      if (!remoteJid || remoteJid === "status@broadcast") {
+      if (
+        !remoteJid ||
+        remoteJid === "status@broadcast"
+      ) {
         continue;
       }
 
@@ -199,7 +159,10 @@ async function handleMessages(socket, messages) {
 
       if (
         group &&
-        !wasVoltageMentioned(message.message, socket)
+        !wasVoltageMentioned(
+          message.message,
+          socket
+        )
       ) {
         continue;
       }
@@ -210,52 +173,62 @@ async function handleMessages(socket, messages) {
         text = removeMention(text);
       }
 
-      const quotedText = getQuotedText(message.message);
-      const previousConversation =
+      const quotedText =
+        getQuotedText(message.message);
+
+      const history =
         memory.formatConversation(remoteJid);
 
       let context = "";
 
-      if (previousConversation) {
-        context += `CONVERSATION HISTORY:\n${previousConversation}\n\n`;
+      if (history) {
+        context +=
+          `CONVERSATION HISTORY:\n${history}\n\n`;
       }
 
       if (quotedText) {
-        context += `QUOTED WHATSAPP MESSAGE:\n${quotedText}\n`;
+        context +=
+          `QUOTED WHATSAPP MESSAGE:\n${quotedText}\n\n`;
       }
 
       console.log(
-        `${group ? "Group" : "DM"} message from ${remoteJid}`
+        `${group ? "Group" : "DM"} message from ${remoteJid}: ${text || "[media]"}`
+      );
+
+      await socket.sendPresenceUpdate(
+        "composing",
+        remoteJid
       );
 
       let result;
 
       if (message.message.imageMessage) {
-        result = await handleImage(
-          socket,
+        result = await processImage(
           message.message,
           text
         );
       } else if (message.message.audioMessage) {
-        result = await handleAudio(
-          socket,
+        result = await processAudio(
           message.message,
           text
         );
       } else if (message.message.videoMessage) {
-        result = await handleVideo(
-          socket,
+        result = await processVideo(
           message.message,
           text
         );
       } else if (message.message.documentMessage) {
-        result = await handleDocument(
-          socket,
+        result = await processDocument(
           message.message,
           text
         );
       } else {
         if (!text) {
+          await socket.sendPresenceUpdate(
+            "paused",
+            remoteJid
+          );
+
           continue;
         }
 
@@ -282,14 +255,12 @@ async function handleMessages(socket, messages) {
         response
       );
 
-      await socket.sendPresenceUpdate(
-        "composing",
-        remoteJid
+      await socket.sendMessage(
+        remoteJid,
+        {
+          text: response
+        }
       );
-
-      await socket.sendMessage(remoteJid, {
-        text: response
-      });
 
       await socket.sendPresenceUpdate(
         "paused",
@@ -300,6 +271,31 @@ async function handleMessages(socket, messages) {
         "Message handling error:",
         error
       );
+
+      try {
+        const remoteJid =
+          message?.key?.remoteJid;
+
+        if (remoteJid) {
+          await socket.sendMessage(
+            remoteJid,
+            {
+              text:
+                "I couldn't process that message right now. Try again."
+            }
+          );
+
+          await socket.sendPresenceUpdate(
+            "paused",
+            remoteJid
+          );
+        }
+      } catch (sendError) {
+        console.error(
+          "Failed to send error response:",
+          sendError
+        );
+      }
     }
   }
 }
