@@ -5,61 +5,60 @@ const {
   requestPairingCode,
   getSocket,
   hasSession,
-  getCurrentPhone,
-  normalizePhone,
-  validatePhone
+  getBotNumber,
+  getPairingCode,
+  getConnectionState,
+  subscribeLogs
 } = require("../whatsapp/connection");
 
 const router = express.Router();
 
 router.get("/status", (req, res) => {
-  const phone = getCurrentPhone();
-
   res.json({
     success: true,
-    name: "Voltage AI",
-    platform: "WhatsApp",
-    connected: Boolean(getSocket()),
-    phone: phone || null
+    connected: getConnectionState() === "open",
+    state: getConnectionState(),
+    number: getBotNumber(),
+    pairingCode: getPairingCode(),
+    session: hasSession()
   });
 });
 
 router.post("/pair", async (req, res) => {
   try {
-    const phone = validatePhone(
-      req.body?.phone
-    );
+    const number = String(
+      req.body?.number || ""
+    ).replace(/\D/g, "");
 
-    console.log(
-      `Voltage pairing requested for ${phone}`
-    );
-
-    if (hasSession(phone)) {
-      return res.status(409).json({
+    if (!number) {
+      return res.status(400).json({
         success: false,
-        error:
-          "This WhatsApp number already has an active Voltage session.",
-        phone
+        error: "WhatsApp number is required"
       });
     }
 
-    const pairingCode =
-      await requestPairingCode(phone);
+    if (number.length < 8) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid WhatsApp number"
+      });
+    }
+
+    console.log(
+      `WhatsApp pairing requested for ${number}`
+    );
+
+    const result = await connectWhatsApp(
+      number
+    );
 
     return res.json({
       success: true,
-      message:
-        "WhatsApp pairing code generated.",
-      phone,
-      pairingCode,
-      instructions: [
-        "Open WhatsApp on the phone using this number.",
-        "Open Settings.",
-        "Open Linked Devices.",
-        "Choose Link a Device.",
-        "Choose Link with phone number instead.",
-        "Enter the pairing code."
-      ]
+      state: getConnectionState(),
+      number,
+      pairingCode:
+        result?.pairingCode ||
+        getPairingCode()
     });
   } catch (error) {
     console.error(
@@ -67,85 +66,73 @@ router.post("/pair", async (req, res) => {
       error
     );
 
-    return res.status(400).json({
+    return res.status(500).json({
       success: false,
       error:
         error?.message ||
-        "Failed to generate pairing code."
+        "Failed to start WhatsApp pairing"
     });
   }
 });
 
-router.post("/connect", async (req, res) => {
-  try {
-    const phone = validatePhone(
-      req.body?.phone
-    );
-
-    await connectWhatsApp(phone);
-
-    return res.json({
-      success: true,
-      message:
-        "Voltage WhatsApp connection started.",
-      phone
-    });
-  } catch (error) {
-    console.error(
-      "WhatsApp connection error:",
-      error
-    );
-
-    return res.status(400).json({
-      success: false,
-      error:
-        error?.message ||
-        "Failed to connect WhatsApp."
-    });
-  }
-});
-
-router.get("/pairing-code", (req, res) => {
-  const phone = normalizePhone(
-    req.query?.phone
+router.get("/logs", (req, res) => {
+  res.setHeader(
+    "Content-Type",
+    "text/event-stream"
   );
 
-  if (!phone) {
-    return res.status(400).json({
-      success: false,
-      error: "Phone number is required."
-    });
-  }
+  res.setHeader(
+    "Cache-Control",
+    "no-cache"
+  );
 
+  res.setHeader(
+    "Connection",
+    "keep-alive"
+  );
+
+  res.flushHeaders?.();
+
+  const send = (log) => {
+    res.write(
+      `data: ${JSON.stringify(log)}\n\n`
+    );
+  };
+
+  send({
+    type: "state",
+    state: getConnectionState(),
+    number: getBotNumber()
+  });
+
+  const unsubscribe =
+    subscribeLogs(send);
+
+  const heartbeat = setInterval(() => {
+    res.write(": heartbeat\n\n");
+  }, 15000);
+
+  req.on("close", () => {
+    clearInterval(heartbeat);
+
+    if (typeof unsubscribe === "function") {
+      unsubscribe();
+    }
+
+    res.end();
+  });
+});
+
+router.get("/session", (req, res) => {
   const socket = getSocket();
 
-  if (!socket || !hasSession(phone)) {
-    return res.status(404).json({
-      success: false,
-      error:
-        "No active WhatsApp pairing session for this number."
-    });
-  }
-
-  const {
-    getPairingCode
-  } = require("../whatsapp/connection");
-
-  const pairingCode =
-    getPairingCode();
-
-  if (!pairingCode) {
-    return res.status(404).json({
-      success: false,
-      error:
-        "No active pairing code."
-    });
-  }
-
-  return res.json({
+  res.json({
     success: true,
-    phone,
-    pairingCode
+    connected:
+      getConnectionState() === "open",
+    state: getConnectionState(),
+    number: getBotNumber(),
+    session: Boolean(socket)
   });
 });
 
