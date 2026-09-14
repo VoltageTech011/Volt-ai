@@ -8,17 +8,25 @@ function getNumberFromJid(jid = '') {
   return normalizeJid(jid).split('@')[0];
 }
 
-global.lidMap = global.lidMap instanceof Map ? global.lidMap : new Map();
+global.lidMap = global.lidMap instanceof Map
+  ? global.lidMap
+  : new Map();
 
 function learnLidMap(participants = []) {
-  for (const p of participants) {
-    const lid = p?.id?.endsWith?.('@lid')
-      ? p.id
-      : p?.lid || null;
+  for (const participant of participants) {
+    const lid =
+      participant?.id?.endsWith?.('@lid')
+        ? participant.id
+        : participant?.lid || null;
 
     const phone =
-      p?.phoneNumber ||
-      (p?.jid && !p.jid.endsWith('@lid') ? p.jid : null);
+      participant?.phoneNumber ||
+      (
+        participant?.jid &&
+        !participant.jid.endsWith('@lid')
+          ? participant.jid
+          : null
+      );
 
     if (lid && phone) {
       global.lidMap.set(
@@ -72,7 +80,9 @@ function checkOwner(sender = '', sockUser = {}) {
 }
 
 function checkDev(sender = '') {
-  if (!Array.isArray(global.dev)) return false;
+  if (!Array.isArray(global.dev)) {
+    return false;
+  }
 
   const user = normalizeJid(sender);
   const resolved = resolveJid(sender);
@@ -130,22 +140,188 @@ function extractBody(message = {}) {
   return '';
 }
 
+function getContextInfo(message = {}) {
+  return (
+    message.extendedTextMessage?.contextInfo ||
+    message.imageMessage?.contextInfo ||
+    message.videoMessage?.contextInfo ||
+    message.documentMessage?.contextInfo ||
+    message.audioMessage?.contextInfo ||
+    message.stickerMessage?.contextInfo ||
+    null
+  );
+}
+
+function getMessageType(message = {}) {
+  return Object.keys(message)[0] || '';
+}
+
+function getMediaInfo(message = {}, type = '') {
+  const mediaTypes = [
+    'imageMessage',
+    'videoMessage',
+    'documentMessage',
+    'audioMessage',
+    'stickerMessage'
+  ];
+
+  const isMedia = mediaTypes.includes(type);
+
+  return {
+    isMedia,
+    mediaType: type
+      ? type.replace('Message', '').toLowerCase()
+      : '',
+    mimetype: message?.[type]?.mimetype || null
+  };
+}
+
+function participantMatches(participant, number) {
+  if (!participant || !number) {
+    return false;
+  }
+
+  const idNumber = getNumberFromJid(
+    normalizeJid(
+      participant.id ||
+      participant.jid ||
+      ''
+    )
+  );
+
+  if (idNumber === number) {
+    return true;
+  }
+
+  const phoneNumber = participant.phoneNumber
+    ? getNumberFromJid(
+        normalizeJid(participant.phoneNumber)
+      )
+    : '';
+
+  return phoneNumber === number;
+}
+
+function getParticipant(participants, number) {
+  return participants.find(
+    participant => participantMatches(participant, number)
+  ) || null;
+}
+
+function extractMentions(message = {}) {
+  const contextInfo = getContextInfo(message);
+
+  const mentions = Array.isArray(contextInfo?.mentionedJid)
+    ? contextInfo.mentionedJid.map(normalizeJid)
+    : [];
+
+  return mentions;
+}
+
+function extractQuoted(sock, from, message) {
+  const contextInfo = getContextInfo(message);
+
+  if (!contextInfo?.quotedMessage) {
+    return null;
+  }
+
+  const quotedMessage = contextInfo.quotedMessage;
+  const quotedType = getMessageType(quotedMessage);
+
+  const quotedKey = {
+    remoteJid: from,
+    id: contextInfo.stanzaId,
+    participant: contextInfo.participant || from
+  };
+
+  const quotedBody =
+    quotedMessage.conversation ||
+    quotedMessage.extendedTextMessage?.text ||
+    quotedMessage.imageMessage?.caption ||
+    quotedMessage.videoMessage?.caption ||
+    quotedMessage.documentMessage?.caption ||
+    '';
+
+  const media = getMediaInfo(
+    quotedMessage,
+    quotedType
+  );
+
+  return {
+    key: quotedKey,
+    message: quotedMessage,
+    type: quotedType,
+    body: quotedBody,
+    text: quotedBody,
+
+    isMedia: media.isMedia,
+    mediaType: media.mediaType,
+    mimetype: media.mimetype,
+
+    sender:
+      contextInfo.participant ||
+      from,
+
+    senderNumber: getNumberFromJid(
+      contextInfo.participant ||
+      from
+    ),
+
+    download: async () => {
+      return downloadMediaMessage(
+        {
+          key: quotedKey,
+          message: quotedMessage
+        },
+        'buffer',
+        {},
+        sock
+      );
+    }
+  };
+}
+
 async function serializeMessage(sock, msg) {
   const from = msg.key?.remoteJid || '';
+
   const isGroup = from.endsWith('@g.us');
 
   const sender = msg.key?.fromMe
-    ? (sock.user?.id || sock.user?.lid || '')
+    ? (
+        sock.user?.id ||
+        sock.user?.lid ||
+        ''
+      )
     : (
         isGroup
           ? msg.key?.participant || ''
           : from
       );
 
-  const type = Object.keys(msg.message || {})[0] || '';
-  const body = extractBody(msg.message || {});
+  const senderNormalized = normalizeJid(sender);
 
-  const senderNumber = getNumberFromJid(sender);
+  const senderResolved = resolveJid(sender);
+
+  const senderNumber = getNumberFromJid(
+    senderResolved
+  );
+
+  const type = getMessageType(
+    msg.message || {}
+  );
+
+  const body = extractBody(
+    msg.message || {}
+  );
+
+  const media = getMediaInfo(
+    msg.message || {},
+    type
+  );
+
+  const mentions = extractMentions(
+    msg.message || {}
+  );
 
   let groupMetadata = null;
 
@@ -155,7 +331,9 @@ async function serializeMessage(sock, msg) {
       .catch(() => null);
   }
 
-  const participants = Array.isArray(groupMetadata?.participants)
+  const participants = Array.isArray(
+    groupMetadata?.participants
+  )
     ? groupMetadata.participants
     : [];
 
@@ -163,47 +341,40 @@ async function serializeMessage(sock, msg) {
     learnLidMap(participants);
   }
 
-  const participantData = participants.find(p => {
-    const idNumber = getNumberFromJid(
-      normalizeJid(p?.id || p?.jid || '')
-    );
-
-    const phoneNumber = p?.phoneNumber
-      ? getNumberFromJid(normalizeJid(p.phoneNumber))
-      : '';
-
-    return (
-      idNumber === senderNumber ||
-      phoneNumber === senderNumber
-    );
-  });
-
-  const botNumber = getNumberFromJid(
-    sock.user?.id || sock.user?.lid || ''
+  const participantData = getParticipant(
+    participants,
+    senderNumber
   );
 
-  const botData = participants.find(p => {
-    const idNumber = getNumberFromJid(
-      normalizeJid(p?.id || p?.jid || '')
-    );
+  const botJid = normalizeJid(
+    sock.user?.id ||
+    sock.user?.lid ||
+    ''
+  );
 
-    const phoneNumber = p?.phoneNumber
-      ? getNumberFromJid(normalizeJid(p.phoneNumber))
-      : '';
+  const botResolved = resolveJid(botJid);
 
-    return (
-      idNumber === botNumber ||
-      phoneNumber === botNumber
-    );
-  });
+  const botNumber = getNumberFromJid(
+    botResolved
+  );
+
+  const botData = getParticipant(
+    participants,
+    botNumber
+  );
 
   const groupOwner =
-    normalizeJid(groupMetadata?.owner || '') ||
-    normalizeJid(groupMetadata?.subjectOwner || '');
+    normalizeJid(
+      groupMetadata?.owner ||
+      groupMetadata?.subjectOwner ||
+      ''
+    );
 
-  const senderNormalized = normalizeJid(sender);
+  const isOwner = checkOwner(
+    sender,
+    sock.user
+  );
 
-  const isOwner = checkOwner(sender, sock.user);
   const isDev = checkDev(sender);
 
   const isAdmin = isGroup
@@ -214,90 +385,68 @@ async function serializeMessage(sock, msg) {
     ? !!botData?.admin
     : false;
 
+  const participantJid = normalizeJid(
+    participantData?.id ||
+    participantData?.jid ||
+    ''
+  );
+
   const isGroupOwner = isGroup
     ? (
         senderNormalized === groupOwner ||
-        normalizeJid(
-          participantData?.id ||
-          participantData?.jid ||
-          ''
-        ) === groupOwner
+        participantJid === groupOwner ||
+        getNumberFromJid(senderResolved) ===
+          getNumberFromJid(groupOwner)
       )
     : false;
 
-  const isMedia = [
-    'imageMessage',
-    'videoMessage',
-    'documentMessage',
-    'audioMessage',
-    'stickerMessage'
-  ].includes(type);
+  const quoted = extractQuoted(
+    sock,
+    from,
+    msg.message || {}
+  );
 
-  const mediaType = type
-    ? type.replace('Message', '').toLowerCase()
-    : '';
-
-  const mimetype =
-    msg.message?.[type]?.mimetype || null;
-
-  let quoted = null;
-
-  const ctxInfo =
-    msg.message?.extendedTextMessage?.contextInfo ||
-    msg.message?.imageMessage?.contextInfo ||
-    msg.message?.videoMessage?.contextInfo ||
-    msg.message?.documentMessage?.contextInfo;
-
-  if (ctxInfo?.quotedMessage) {
-    const quotedMessage = ctxInfo.quotedMessage;
-    const quotedType =
-      Object.keys(quotedMessage)[0] || '';
-
-    const quotedKey = {
-      remoteJid: from,
-      id: ctxInfo.stanzaId,
-      participant: ctxInfo.participant || from
-    };
-
-    quoted = {
-      key: quotedKey,
-      message: quotedMessage,
-      type: quotedType,
-
-      body:
-        quotedMessage.conversation ||
-        quotedMessage.extendedTextMessage?.text ||
-        quotedMessage[quotedType]?.caption ||
-        '',
-
-      isMedia: [
-        'imageMessage',
-        'videoMessage',
-        'documentMessage',
-        'audioMessage',
-        'stickerMessage'
-      ].includes(quotedType),
-
-      mediaType: quotedType
-        ? quotedType.replace('Message', '').toLowerCase()
-        : '',
-
-      mimetype:
-        quotedMessage[quotedType]?.mimetype || null,
-
-      download: async () => {
-        return downloadMediaMessage(
-          {
-            key: quotedKey,
-            message: quotedMessage
-          },
-          'buffer',
-          {},
-          sock
-        );
+  const groupInfo = isGroup
+    ? {
+        id: from,
+        name: groupMetadata?.subject || '',
+        description: groupMetadata?.desc || '',
+        owner: groupOwner,
+        memberCount:
+          groupMetadata?.participants?.length || 0,
+        admins: participants
+          .filter(p => !!p.admin)
+          .map(p => ({
+            jid: normalizeJid(
+              p.id ||
+              p.jid ||
+              ''
+            ),
+            number: getNumberFromJid(
+              resolveJid(
+                p.id ||
+                p.jid ||
+                ''
+              )
+            ),
+            role: p.admin
+          }))
       }
-    };
-  }
+    : null;
+
+  const userInfo = {
+    jid: senderResolved,
+    number: senderNumber,
+    name:
+      msg.pushName ||
+      senderNumber ||
+      'Unknown',
+    isOwner,
+    isDev,
+    isAdmin,
+    isGroupOwner,
+    isBot: senderNumber === botNumber
+  };
 
   const messageObject = {
     key: msg.key,
@@ -305,6 +454,7 @@ async function serializeMessage(sock, msg) {
 
     from,
     sender,
+    senderResolved,
     senderNumber,
 
     pushName:
@@ -319,12 +469,18 @@ async function serializeMessage(sock, msg) {
     mtype: type,
 
     isGroup,
+    isFromMe: !!msg.key?.fromMe,
 
     groupMetadata,
+    group: groupInfo,
+    user: userInfo,
 
-    isMedia,
-    mediaType,
-    mimetype,
+    mentions,
+    mentionedJids: mentions,
+
+    isMedia: media.isMedia,
+    mediaType: media.mediaType,
+    mimetype: media.mimetype,
 
     quoted,
 
@@ -334,8 +490,6 @@ async function serializeMessage(sock, msg) {
     isBotAdmin,
     isGroupOwner,
 
-    isFromMe: !!msg.key?.fromMe,
-
     isButtonResponse:
       !!msg.message?.interactiveResponseMessage,
 
@@ -343,15 +497,39 @@ async function serializeMessage(sock, msg) {
       msg.message?.interactiveResponseMessage?.buttonId ||
       null,
 
-    reply: async (content, options = {}) => {
-      const payload =
-        typeof content === 'string'
-          ? { text: content, ...options }
-          : Buffer.isBuffer(content)
-            ? { image: content, ...options }
-            : typeof content === 'object'
-              ? content
-              : { text: String(content), ...options };
+    timestamp:
+      msg.messageTimestamp ||
+      Math.floor(Date.now() / 1000),
+
+    raw: msg,
+
+    reply: async (
+      content,
+      options = {}
+    ) => {
+      let payload;
+
+      if (typeof content === 'string') {
+        payload = {
+          text: content,
+          ...options
+        };
+      } else if (Buffer.isBuffer(content)) {
+        payload = {
+          image: content,
+          ...options
+        };
+      } else if (
+        content &&
+        typeof content === 'object'
+      ) {
+        payload = content;
+      } else {
+        payload = {
+          text: String(content),
+          ...options
+        };
+      }
 
       return sock.sendMessage(
         from,
@@ -360,10 +538,16 @@ async function serializeMessage(sock, msg) {
       );
     },
 
-    send: async (content, options = {}) => {
+    send: async (
+      content,
+      options = {}
+    ) => {
       const payload =
         typeof content === 'string'
-          ? { text: content, ...options }
+          ? {
+              text: content,
+              ...options
+            }
           : content;
 
       return sock.sendMessage(
@@ -385,7 +569,10 @@ async function serializeMessage(sock, msg) {
       );
     },
 
-    forward: async (jid, force = false) => {
+    forward: async (
+      jid,
+      force = false
+    ) => {
       return sock.sendMessage(
         jid,
         {
@@ -396,7 +583,7 @@ async function serializeMessage(sock, msg) {
     },
 
     download: async () => {
-      if (isMedia) {
+      if (media.isMedia) {
         return downloadMediaMessage(
           msg,
           'buffer',
@@ -417,9 +604,27 @@ async function serializeMessage(sock, msg) {
 }
 
 module.exports = serializeMessage;
-module.exports.normalizeJid = normalizeJid;
-module.exports.getNumberFromJid = getNumberFromJid;
-module.exports.checkOwner = checkOwner;
-module.exports.checkDev = checkDev;
-module.exports.resolveJid = resolveJid;
-module.exports.learnLidMap = learnLidMap;
+
+module.exports.normalizeJid =
+  normalizeJid;
+
+module.exports.getNumberFromJid =
+  getNumberFromJid;
+
+module.exports.checkOwner =
+  checkOwner;
+
+module.exports.checkDev =
+  checkDev;
+
+module.exports.resolveJid =
+  resolveJid;
+
+module.exports.learnLidMap =
+  learnLidMap;
+
+module.exports.extractBody =
+  extractBody;
+
+module.exports.extractMentions =
+  extractMentions;
