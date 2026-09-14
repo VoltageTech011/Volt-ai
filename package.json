@@ -1,21 +1,34 @@
 {
   "name": "voltage",
   "version": "1.0.0",
-  "description": "Voltage — a personal multi-capability AI system.",
-  "main": "src/server.js",
+  "description": "Voltage — intelligent WhatsApp AI bot built by Voltage Lord",
+  "main": "index.js",
+  "type": "commonjs",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
-    "test": "node --test"
+    "start": "node index.js",
+    "dev": "node index.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=18.0.0"
   },
+  "author": "Voltage Lord",
+  "license": "MIT",
+  "private": true,
+  "keywords": [
+    "whatsapp",
+    "baileys",
+    "voltage",
+    "ai",
+    "bot"
+  ],
   "dependencies": {
-    "@whiskeysockets/baileys": "6.7.24",
-    "better-sqlite3": "^12.4.1",
-    "dotenv": "^17.2.2",
-    "express": "^5.1.0",
-    "cors": "^2.8.5"
+    "@hapi/boom": "^10.0.1",
+    "@whiskeysockets/baileys": "^7.0.0-rc.9",
+    "axios": "^1.18.1",
+    "dotenv": "^17.2.3",
+    "express": "^4.18.2",
+    "jimp": "^1.6.1",
+    "pino": "^8.17.0",
+    "qrcode": "^1.5.1"
   }
 }
