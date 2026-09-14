@@ -1,18 +1,20 @@
 module.exports = {
   name: 'ping',
-  aliases: ['p'],
+  aliases: ['p', 'speed'],
 
   async execute(sock, m) {
     const start = Date.now();
 
-    const message = await m.reply(
-      '⚡ Voltage is online...'
-    );
+    const sent = await m.reply('Testing Voltage...');
 
     const latency = Date.now() - start;
 
     await m.reply(
-      `⚡ PONG\n\nLatency: ${latency}ms\nStatus: ONLINE`
+      `⚡ *VOLTAGE ONLINE*\n\n` +
+      `Response: ${latency}ms\n` +
+      `User: ${m.pushName}\n` +
+      `Number: ${m.senderNumber}\n` +
+      `Mode: ${m.isGroup ? 'Group' : 'Private'}`
     );
   }
 };
